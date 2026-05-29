@@ -424,8 +424,9 @@ function mockHandler(endpoint, method, body) {
         const now = new Date();
         const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
         
+        const nextId = db.trades.length > 0 ? Math.max(...db.trades.map(t => t.id)) + 1 : 1001;
         const newTrade = {
-          id: db.trades.length + 1001,
+          id: nextId,
           symbol,
           side,
           qty,

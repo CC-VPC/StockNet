@@ -138,8 +138,11 @@
       currentSide = 'BUY';
       document.getElementById('btn-side-buy').classList.add('active');
       document.getElementById('btn-side-sell').classList.remove('active');
-      document.getElementById('btn-submit-order').className = 'btn-primary';
-      document.getElementById('btn-submit-order').textContent = 'Transmit Buy Order';
+      const btn = document.getElementById('btn-submit-order');
+      btn.className = 'btn-primary';
+      btn.style.backgroundColor = ''; // clear SELL inline override
+      btn.style.color = '';           // clear SELL inline override
+      btn.textContent = 'Transmit Buy Order';
       updateEstimate();
     });
 
