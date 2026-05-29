@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StockNet — Trade History</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+  <!-- Dynamic Headers Injected by app.js -->
+  <div id="navbar-placeholder"></div>
+  <div id="ticker-placeholder"></div>
+
+  <main class="container">
+    <!-- Section Title -->
+    <header style="margin-bottom: 24px;">
+      <h2 style="font-family: var(--font-heading); margin-bottom: 4px;">Trade Ledger</h2>
+      <p style="color: var(--text-muted); font-size: 0.9rem;">
+        Complete transaction log of VPC peering network joined with database <code class="mono" style="color: var(--green);">stock-p2-rds-1</code>
+      </p>
+    </header>
+
+    <!-- Filters Panel -->
+    <section class="panel" style="padding: 16px 20px; margin-bottom: 20px;">
+      <div class="filter-bar">
+        <div style="flex: 1; min-width: 160px;">
+          <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px;">Search Symbol</label>
+          <input type="text" id="filter-symbol" class="form-control" placeholder="e.g. AAPL" style="padding: 8px 12px; font-size: 0.85rem;" />
+        </div>
+        
+        <div style="min-width: 140px;">
+          <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px;">Order Side</label>
+          <select id="filter-side" class="form-control" style="padding: 8px 12px; font-size: 0.85rem;">
+            <option value="ALL">All Sides</option>
+            <option value="BUY">BUY Only</option>
+            <option value="SELL">SELL Only</option>
+          </select>
+        </div>
+
+        <div style="min-width: 160px;">
+          <label class="form-label" style="font-size: 0.75rem; margin-bottom: 4px;">P4 Compliance</label>
+          <select id="filter-compliance" class="form-control" style="padding: 8px 12px; font-size: 0.85rem;">
+            <option value="ALL">All Statuses</option>
+            <option value="CLEAR">CLEAR Badge</option>
+            <option value="FLAGGED">FLAGGED Engine Badge</option>
+          </select>
+        </div>
+
+        <div style="align-self: flex-end; height: 36px; display: flex; align-items: center; margin-top: 14px;">
+          <button id="btn-reset-filters" class="btn-secondary" style="padding: 6px 14px; font-size: 0.85rem; height: 100%;">
+            Reset Filters
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Trades Table Section -->
+    <section class="panel">
+      <div class="panel-header">
+        <h3 class="panel-title" style="font-family: var(--font-heading);">Transaction Logs</h3>
+        <span id="ledger-count-label" style="font-size: 0.8rem; color: var(--text-muted);">0 transactions found</span>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Timestamp</th>
+              <th>Symbol</th>
+              <th>Side</th>
+              <th>Qty</th>
+              <th>Execution Price</th>
+              <th>Total Cost</th>
+              <th style="text-align: right;">P4 Compliance</th>
+            </tr>
+          </thead>
+          <tbody id="trades-table-body">
+            <tr>
+              <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 30px;">
+                Synchronizing trade ledger indexes...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination Footer -->
+      <footer class="pagination">
+        <div class="page-info" id="pagination-info">
+          Showing 0-0 of 0 transactions
+        </div>
+        <div class="page-controls">
+          <button id="btn-prev-page" class="btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">&larr; Prev</button>
+          <button id="btn-next-page" class="btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">Next &rarr;</button>
+        </div>
+      </footer>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+  <script>
+    // Component Pagination State
+    let allTrades = [];
+    let filteredTrades = [];
+    let currentPage = 1;
+    const itemsPerPage = 20;
+
+    async function loadTrades() {
+      try {
+        allTrades = await apiRequest('/api/trades');
+        applyFilters();
+      } catch (err) {
+        console.error('Failed to load trade ledger', err);
+      }
+    }
+
+    function applyFilters() {
+      const symFilter = document.getElementById('filter-symbol').value.trim().toUpperCase();
+      const sideFilter = document.getElementById('filter-side').value;
+      const compFilter = document.getElementById('filter-compliance').value;
+
+      filteredTrades = allTrades.filter(t => {
+        // Symbol Match
+        if (symFilter && !t.symbol.toUpperCase().includes(symFilter)) {
+          return false;
+        }
+        // Side Match
+        if (sideFilter !== 'ALL' && t.side !== sideFilter) {
+          return false;
+        }
+        // Compliance Match
+        if (compFilter !== 'ALL' && t.compliance_status !== compFilter) {
+          return false;
+        }
+        return true;
+      });
+
+      currentPage = 1; // reset page when filters change
+      renderTable();
+    }
+
+    function renderTable() {
+      const tableBody = document.getElementById('trades-table-body');
+      const countLabel = document.getElementById('ledger-count-label');
+      const prevBtn = document.getElementById('btn-prev-page');
+      const nextBtn = document.getElementById('btn-next-page');
+      const pageInfo = document.getElementById('pagination-info');
+
+      if (!tableBody) return;
+
+      countLabel.textContent = `${filteredTrades.length} transaction${filteredTrades.length === 1 ? '' : 's'} indexed`;
+
+      if (filteredTrades.length === 0) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 30px;">
+              No transactions matching the selected filters found in the database.
+            </td>
+          </tr>
+        `;
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+        pageInfo.textContent = 'Showing 0-0 of 0 logs';
+        return;
+      }
+
+      // Pagination math
+      const totalPages = Math.ceil(filteredTrades.length / itemsPerPage);
+      if (currentPage < 1) currentPage = 1;
+      if (currentPage > totalPages) currentPage = totalPages;
+
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = Math.min(startIndex + itemsPerPage, filteredTrades.length);
+      const paginatedItems = filteredTrades.slice(startIndex, endIndex);
+
+      let tableHtml = '';
+      paginatedItems.forEach(t => {
+        const sideClass = t.side === 'BUY' ? 'badge-buy' : 'badge-sell';
+        const complianceClass = t.compliance_status === 'FLAGGED' ? 'badge-flagged' : 'badge-clear';
+        const cost = t.qty * t.price;
+
+        tableHtml += `
+          <tr>
+            <td class="mono" style="color: var(--text-muted); font-size: 0.85rem;">#${t.id}</td>
+            <td class="mono" style="font-size: 0.85rem; color: var(--text-muted);">${t.timestamp}</td>
+            <td style="font-family: var(--font-heading); font-weight: 600; color: var(--green);">${t.symbol}</td>
+            <td><span class="badge ${sideClass}" style="padding: 2px 6px; font-size: 0.7rem;">${t.side}</span></td>
+            <td class="mono">${t.qty}</td>
+            <td class="mono">$${t.price.toFixed(2)}</td>
+            <td class="mono">$${cost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td style="text-align: right;"><span class="badge ${complianceClass}">${t.compliance_status}</span></td>
+          </tr>
+        `;
+      });
+
+      tableBody.innerHTML = tableHtml;
+
+      // Update pagination control elements
+      pageInfo.textContent = `Showing ${startIndex + 1}-${endIndex} of ${filteredTrades.length} logs (Page ${currentPage} of ${totalPages})`;
+      prevBtn.disabled = currentPage === 1;
+      nextBtn.disabled = currentPage === totalPages || totalPages === 0;
+    }
+
+    // Attach filter event handlers
+    document.getElementById('filter-symbol').addEventListener('input', applyFilters);
+    document.getElementById('filter-side').addEventListener('change', applyFilters);
+    document.getElementById('filter-compliance').addEventListener('change', applyFilters);
+    
+    document.getElementById('btn-reset-filters').addEventListener('click', () => {
+      document.getElementById('filter-symbol').value = '';
+      document.getElementById('filter-side').value = 'ALL';
+      document.getElementById('filter-compliance').value = 'ALL';
+      applyFilters();
+    });
+
+    // Pagination events
+    document.getElementById('btn-prev-page').addEventListener('click', () => {
+      if (currentPage > 1) {
+        currentPage--;
+        renderTable();
+      }
+    });
+
+    document.getElementById('btn-next-page').addEventListener('click', () => {
+      const totalPages = Math.ceil(filteredTrades.length / itemsPerPage);
+      if (currentPage < totalPages) {
+        currentPage++;
+        renderTable();
+      }
+    });
+
+    // Initial Load
+    document.addEventListener('DOMContentLoaded', loadTrades);
+  </script>
+</body>
+</html>

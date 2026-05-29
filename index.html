@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StockNet — Decentralized Stock Trading Platform</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+  <!-- Dynamic Headers Injected by app.js -->
+  <div id="navbar-placeholder"></div>
+  <div id="ticker-placeholder"></div>
+
+  <main class="container">
+    <!-- Section Title -->
+    <header style="margin-bottom: 24px;">
+      <h2 style="font-family: var(--font-heading); margin-bottom: 4px;">Live Dashboard</h2>
+      <p style="color: var(--text-muted); font-size: 0.9rem;">
+        Real-time market activity on EC2 cluster <code class="mono" style="color: var(--green);">stock-p1-web-ec2-1</code>
+      </p>
+    </header>
+
+    <!-- Market Overview Cards -->
+    <section class="grid-market" id="market-overview-grid">
+      <!-- AAPL Card -->
+      <div class="card" id="card-AAPL">
+        <div class="card-title">AAPL · Apple Inc.</div>
+        <div class="card-value mono" id="price-AAPL">$175.00</div>
+        <div class="card-change" id="change-AAPL">
+          <span class="mono">--</span>
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; display: flex; justify-content: space-between;">
+          <span>Volume:</span>
+          <span class="mono" id="vol-AAPL">52.4M</span>
+        </div>
+      </div>
+
+      <!-- GOOGL Card -->
+      <div class="card" id="card-GOOGL">
+        <div class="card-title">GOOGL · Alphabet Inc.</div>
+        <div class="card-value mono" id="price-GOOGL">$140.00</div>
+        <div class="card-change" id="change-GOOGL">
+          <span class="mono">--</span>
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; display: flex; justify-content: space-between;">
+          <span>Volume:</span>
+          <span class="mono" id="vol-GOOGL">28.1M</span>
+        </div>
+      </div>
+
+      <!-- TSLA Card -->
+      <div class="card" id="card-TSLA">
+        <div class="card-title">TSLA · Tesla Inc.</div>
+        <div class="card-value mono" id="price-TSLA">$180.00</div>
+        <div class="card-change" id="change-TSLA">
+          <span class="mono">--</span>
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; display: flex; justify-content: space-between;">
+          <span>Volume:</span>
+          <span class="mono" id="vol-TSLA">88.9M</span>
+        </div>
+      </div>
+
+      <!-- AMZN Card -->
+      <div class="card" id="card-AMZN">
+        <div class="card-title">AMZN · Amazon.com Inc.</div>
+        <div class="card-value mono" id="price-AMZN">$170.00</div>
+        <div class="card-change" id="change-AMZN">
+          <span class="mono">--</span>
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; display: flex; justify-content: space-between;">
+          <span>Volume:</span>
+          <span class="mono" id="vol-AMZN">34.7M</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Grid Content -->
+    <div class="grid-dashboard">
+      <!-- Left Column: Recent Trades Feed -->
+      <section class="panel">
+        <div class="panel-header">
+          <h3 class="panel-title" style="font-family: var(--font-heading);">Recent Trades Feed</h3>
+          <span style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+            <span class="live-pulse"></span> SYSTEM OK
+          </span>
+        </div>
+        <div class="feed-list" id="trades-feed">
+          <!-- Dynamically Injected -->
+          <div style="padding: 20px; text-align: center; color: var(--text-muted);">
+            Retrieving recent trades logs...
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: System Status & Topology Panel -->
+      <aside style="display: flex; flex-direction: column; gap: 24px;">
+        <!-- System Status Panel -->
+        <section class="panel" style="margin-bottom: 0;">
+          <div class="panel-header">
+            <h3 class="panel-title" style="font-family: var(--font-heading);">System Status</h3>
+          </div>
+          <div class="status-list" style="margin-bottom: 20px;">
+            <div class="status-item">
+              <span class="status-label">Web Instance</span>
+              <span class="badge badge-up">UP</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">P2 RDS Multi-AZ</span>
+              <span class="badge" id="rds-status-badge">CHECKING</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">P4 Compliance Engine</span>
+              <span class="badge" id="compliance-status-badge">CHECKING</span>
+            </div>
+          </div>
+
+          <button id="btn-health-check" class="btn-primary">Run Connectivity Test</button>
+
+          <div id="health-check-results" class="alert-banner" style="margin-top: 16px;">
+            <div class="alert-title" id="health-title"></div>
+            <div class="alert-desc" id="health-desc"></div>
+          </div>
+
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; line-height: 1.4;">
+            <span style="font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-primary);">VPC Peering Verification:</span>
+            Verifies routes from public subnet to private DB subnets via VPC Peering connection.
+          </div>
+        </section>
+
+        <!-- VPC Network Topology SVG Card -->
+        <section class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title" style="font-family: var(--font-heading);">VPC Peering Topology</h3>
+          </div>
+          
+          <div style="background-color: #0b0b0b; border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; justify-content: center; margin-bottom: 12px;">
+            <svg viewBox="0 0 320 250" width="100%" height="auto" style="display: block;">
+              <style>
+                @keyframes flow-inbound {
+                  to { stroke-dashoffset: 20; }
+                }
+                @keyframes flow-outbound {
+                  to { stroke-dashoffset: -20; }
+                }
+                .peer-line {
+                  stroke: #333333;
+                  stroke-width: 1.5;
+                  stroke-dasharray: 4 4;
+                  fill: none;
+                }
+                .peer-line-active {
+                  stroke: #00c853;
+                  stroke-width: 1.5;
+                  stroke-dasharray: 4 4;
+                  fill: none;
+                  animation: flow-outbound 1.2s linear infinite;
+                }
+                .vpc-border {
+                  stroke: #222222;
+                  stroke-width: 1.5;
+                  fill: #161616;
+                }
+                .node-box {
+                  stroke: #333333;
+                  stroke-width: 1;
+                  fill: #1e1e1e;
+                }
+              </style>
+              
+              <!-- Definitions for Gradients -->
+              <defs>
+                <linearGradient id="p1-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#161616" />
+                  <stop offset="100%" stop-color="#0e2314" />
+                </linearGradient>
+              </defs>
+
+              <!-- VPC Peering Dotted Tunnels (Background Links) -->
+              <!-- P3 to P1 Link -->
+              <path d="M 60 50 L 110 95" class="peer-line-active" style="stroke: #ff9800; animation: flow-inbound 1.5s linear infinite;" />
+              <!-- M4 to P1 Link (P4 Compliance Peering) -->
+              <path d="M 260 50 L 210 95" class="peer-line-active" style="stroke: #ff3d3d; animation: flow-outbound 1.5s linear infinite;" />
+              <!-- P1 to P2 Link -->
+              <path d="M 160 165 L 160 190" class="peer-line-active" />
+
+              <!-- VPC 3 Card (Top Left) -->
+              <rect x="10" y="10" width="100" height="40" rx="6" class="vpc-border" />
+              <text x="60" y="24" text-anchor="middle" fill="#8e8e93" font-size="8" font-family="var(--font-heading)" font-weight="600">P3 VPC (Staging)</text>
+              <text x="60" y="36" text-anchor="middle" fill="#ff9800" font-size="8" font-family="var(--font-mono)">10.3.0.0/16</text>
+
+              <!-- VPC 4 Card (Top Right) -->
+              <rect x="210" y="10" width="100" height="40" rx="6" class="vpc-border" />
+              <text x="260" y="24" text-anchor="middle" fill="#8e8e93" font-size="8" font-family="var(--font-heading)" font-weight="600">P4 Compliance</text>
+              <text x="260" y="36" text-anchor="middle" fill="#ff3d3d" font-size="8" font-family="var(--font-mono)">10.4.0.0/16</text>
+
+              <!-- VPC 1 Hub Card (Center) -->
+              <rect x="75" y="80" width="170" height="85" rx="8" class="vpc-border" style="fill: url(#p1-grad); stroke: #00c853; stroke-opacity: 0.4;" />
+              <text x="160" y="96" text-anchor="middle" fill="#f0f0f0" font-size="9" font-family="var(--font-heading)" font-weight="700">P1 HUB VPC (10.0.0.0/16)</text>
+              
+              <!-- Subnets inside P1 -->
+              <!-- Public Subnet (Web EC2) -->
+              <rect x="85" y="108" width="70" height="46" rx="4" class="node-box" />
+              <text x="120" y="120" text-anchor="middle" fill="#8e8e93" font-size="7" font-weight="600">Public Subnet</text>
+              <rect x="90" y="125" width="60" height="24" rx="3" fill="#111111" stroke="#333" />
+              <text x="120" y="136" text-anchor="middle" fill="#00c853" font-size="7" font-family="var(--font-mono)" font-weight="600">web-ec2-1</text>
+              <text x="120" y="144" text-anchor="middle" fill="#8e8e93" font-size="6" font-family="var(--font-mono)">Port 80/443</text>
+
+              <!-- Private Subnet (App EC2) -->
+              <rect x="165" y="108" width="70" height="46" rx="4" class="node-box" />
+              <text x="200" y="120" text-anchor="middle" fill="#8e8e93" font-size="7" font-weight="600">Private Subnet</text>
+              <rect x="170" y="125" width="60" height="24" rx="3" fill="#111111" stroke="#333" />
+              <text x="200" y="136" text-anchor="middle" fill="#00c853" font-size="7" font-family="var(--font-mono)" font-weight="600">app-ec2-1</text>
+              <text x="200" y="144" text-anchor="middle" fill="#8e8e93" font-size="6" font-family="var(--font-mono)">Port 5000</text>
+
+              <!-- Local DB peering Tunnel -->
+              <path d="M 155 131 L 165 131" stroke="#00c853" stroke-width="1" stroke-dasharray="2 2" fill="none" />
+
+              <!-- VPC 2 Database Card (Bottom) -->
+              <rect x="75" y="190" width="170" height="48" rx="8" class="vpc-border" />
+              <text x="160" y="204" text-anchor="middle" fill="#8e8e93" font-size="8" font-family="var(--font-heading)" font-weight="600">P2 DATABASE VPC (10.1.0.0/16)</text>
+              <rect x="85" y="210" width="150" height="22" rx="4" fill="#1e1e1e" stroke="#333" />
+              <text x="160" y="222" text-anchor="middle" fill="#00c853" font-size="8" font-family="var(--font-mono)" font-weight="600">db.t3.micro RDS Multi-AZ (Postgres:5432)</text>
+
+              <!-- VPC Peering Text Badges -->
+              <rect x="52" y="65" width="34" height="12" rx="3" fill="#111111" stroke="#ff9800" stroke-opacity="0.4" />
+              <text x="69" y="73" text-anchor="middle" fill="#ff9800" font-size="6" font-family="var(--font-mono)">pcx-p3</text>
+
+              <rect x="234" y="65" width="34" height="12" rx="3" fill="#111111" stroke="#ff3d3d" stroke-opacity="0.4" />
+              <text x="251" y="73" text-anchor="middle" fill="#ff3d3d" font-size="6" font-family="var(--font-mono)">pcx-p4</text>
+
+              <rect x="143" y="170" width="34" height="12" rx="3" fill="#111111" stroke="#00c853" stroke-opacity="0.4" />
+              <text x="160" y="178" text-anchor="middle" fill="#00c853" font-size="6" font-family="var(--font-mono)">pcx-p2</text>
+            </svg>
+          </div>
+
+          <div style="font-size: 0.72rem; color: var(--text-muted); line-height: 1.4;">
+            <span style="font-weight: 600; display: block; margin-bottom: 3px; color: var(--text-primary);">Hub & Spoke Private VPC Peering:</span>
+            Public internet traffic hits the Nginx proxy in P1's public subnet, forwarding calls to the private App EC2. Cross-environment queries flow securely through AWS private peering connections (<code class="mono" style="color: var(--green);">pcx</code>), avoiding public hops.
+          </div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+  <script>
+    // Load dynamic data on Dashboard
+    async function loadDashboardData() {
+      try {
+        const stocks = await apiRequest('/api/stocks');
+        updateStocksCards(stocks);
+
+        const trades = await apiRequest('/api/trades');
+        updateTradesFeed(trades);
+
+        // Run automated initial soft health check
+        softHealthCheck();
+      } catch (err) {
+        console.error('Failed to load dashboard data', err);
+      }
+    }
+
+    function updateStocksCards(stocks) {
+      stocks.forEach(stock => {
+        const priceEl = document.getElementById(`price-${stock.symbol}`);
+        const changeEl = document.getElementById(`change-${stock.symbol}`);
+        const volEl = document.getElementById(`vol-${stock.symbol}`);
+
+        if (priceEl) priceEl.textContent = `$${stock.price.toFixed(2)}`;
+        
+        if (changeEl) {
+          const isUp = stock.change >= 0;
+          const sign = isUp ? '▲' : '▼';
+          changeEl.className = `card-change ${isUp ? 'up' : 'down'}`;
+          changeEl.innerHTML = `<span class="mono">${sign} ${Math.abs(stock.change).toFixed(2)}% ($${Math.abs(stock.changeVal).toFixed(2)})</span>`;
+        }
+
+        if (volEl) volEl.textContent = stock.volume;
+      });
+    }
+
+    function updateTradesFeed(trades) {
+      const feedEl = document.getElementById('trades-feed');
+      if (!feedEl) return;
+
+      if (!trades || trades.length === 0) {
+        feedEl.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted);">No executed trades found in Multi-AZ DB.</div>`;
+        return;
+      }
+
+      // Display the last 10 trades
+      const recentTrades = trades.slice(0, 10);
+      let feedHtml = '';
+
+      recentTrades.forEach(trade => {
+        const sideClass = trade.side === 'BUY' ? 'badge-buy' : 'badge-sell';
+        const complianceClass = trade.compliance_status === 'FLAGGED' ? 'badge-flagged' : 'badge-clear';
+        const totalCost = trade.qty * trade.price;
+
+        feedHtml += `
+          <div class="feed-item">
+            <div class="feed-details">
+              <span class="feed-title" style="font-family: var(--font-heading);">${trade.symbol}</span>
+              <span class="feed-subtitle">
+                <span class="badge ${sideClass}" style="padding: 2px 6px; font-size: 0.65rem;">${trade.side}</span>
+                <span class="mono">${trade.qty} shares</span>
+              </span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px;">
+              <span class="badge ${complianceClass}">${trade.compliance_status}</span>
+              <div class="feed-metric">
+                <div class="feed-price mono">$${trade.price.toFixed(2)}</div>
+                <div class="feed-time mono">$${totalCost.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      feedEl.innerHTML = feedHtml;
+    }
+
+    // Dynamic Hook: called by app.js price drift simulation
+    function refreshDashboardPrices() {
+      // Re-fetch local state and refresh UI elements
+      if (config.apiMode === 'mock') {
+        const mockStocks = Object.values(db.stocks);
+        updateStocksCards(mockStocks);
+      }
+    }
+
+    // Passive connectivity ping to check default badge states
+    async function softHealthCheck() {
+      const rdsBadge = document.getElementById('rds-status-badge');
+      const compBadge = document.getElementById('compliance-status-badge');
+
+      try {
+        const res = await apiRequest('/api/health');
+        if (res && res.status === 'UP') {
+          rdsBadge.className = 'badge badge-up';
+          rdsBadge.textContent = 'UP';
+          compBadge.className = 'badge badge-up';
+          compBadge.textContent = 'UP';
+        } else {
+          throw new Error('API down');
+        }
+      } catch (err) {
+        rdsBadge.className = 'badge badge-down';
+        rdsBadge.textContent = 'DOWN';
+        compBadge.className = 'badge badge-down';
+        compBadge.textContent = 'DOWN';
+      }
+    }
+
+    // Active Health Connectivity Test Form Handler
+    document.getElementById('btn-health-check').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-health-check');
+      const resultsEl = document.getElementById('health-check-results');
+      const titleEl = document.getElementById('health-title');
+      const descEl = document.getElementById('health-desc');
+
+      btn.disabled = true;
+      btn.textContent = 'Pinging Node/Flask DB Connection...';
+      resultsEl.style.display = 'none';
+
+      try {
+        const res = await apiRequest('/api/health');
+        
+        btn.disabled = false;
+        btn.textContent = 'Run Connectivity Test';
+        resultsEl.style.display = 'block';
+        resultsEl.className = 'alert-banner alert-banner-success';
+
+        titleEl.innerHTML = '⚡ VPC Peering Connectivity: SUCCESS';
+        descEl.innerHTML = `
+          <strong>Endpoint Status:</strong> UP (App tier at <code class="mono">${config.apiHost}</code>)<br>
+          <strong>P2 RDS Central Database:</strong> ${res.rds_connectivity || 'CONNECTED'}<br>
+          <strong>P4 Risk/Compliance Engine:</strong> ${res.compliance_engine || 'ACTIVE'}<br>
+          <strong>VPC Context:</strong> Peered to P1 over Private AWS Peering (Active routes in ${config.env === 'PROD' ? '10.2.0.0/16' : '10.3.0.0/16'})
+        `;
+
+        document.getElementById('rds-status-badge').className = 'badge badge-up';
+        document.getElementById('rds-status-badge').textContent = 'UP';
+        document.getElementById('compliance-status-badge').className = 'badge badge-up';
+        document.getElementById('compliance-status-badge').textContent = 'UP';
+
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Run Connectivity Test';
+        resultsEl.style.display = 'block';
+        resultsEl.className = 'alert-banner alert-banner-warning';
+
+        titleEl.innerHTML = '⚠️ Connectivity Test: OFFLINE';
+        descEl.innerHTML = `
+          <strong>Failed to fetch:</strong> <code class="mono">${config.apiHost}/api/health</code><br>
+          <strong>Reason:</strong> Flask App Tier is unreachable. If running in production VPC, verify security groups allow inbound port 5000 from the web tier.<br><br>
+          <em>* Note: You can toggle "Local Demo Mode" in the settings cog (top right) to test and review application behaviors offline.</em>
+        `;
+
+        document.getElementById('rds-status-badge').className = 'badge badge-down';
+        document.getElementById('rds-status-badge').textContent = 'DOWN';
+        document.getElementById('compliance-status-badge').className = 'badge badge-down';
+        document.getElementById('compliance-status-badge').textContent = 'DOWN';
+      }
+    });
+
+    // Initial Load
+    document.addEventListener('DOMContentLoaded', loadDashboardData);
+  </script>
+</body>
+</html>

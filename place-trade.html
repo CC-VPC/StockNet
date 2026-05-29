@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StockNet — Place Trade</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+  <!-- Dynamic Headers Injected by app.js -->
+  <div id="navbar-placeholder"></div>
+  <div id="ticker-placeholder"></div>
+
+  <main class="container">
+    <div style="max-width: 600px; margin: 0 auto;">
+      <!-- Section Title -->
+      <header style="margin-bottom: 24px; text-align: center;">
+        <h2 style="font-family: var(--font-heading); margin-bottom: 4px;">Execute Order</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">
+          Submit transaction directly to app engine <code class="mono" style="color: var(--green);">stock-p1-app-ec2-1</code>
+        </p>
+      </header>
+
+      <!-- Trading Form Panel -->
+      <section class="panel" style="padding: 30px;">
+        <form id="trade-form" onsubmit="handleTradeSubmit(event)">
+          <!-- Segmented Side Controller (BUY/SELL) -->
+          <div class="form-group">
+            <label class="form-label">Order Action</label>
+            <div class="segmented-control">
+              <button type="button" class="segment-btn active buy" id="btn-side-buy">BUY</button>
+              <button type="button" class="segment-btn" id="btn-side-sell">SELL</button>
+            </div>
+          </div>
+
+          <!-- Stock Selection -->
+          <div class="form-group">
+            <label class="form-label" for="select-symbol">Asset Token Symbol</label>
+            <select id="select-symbol" class="form-control mono" required>
+              <option value="AAPL">AAPL · Apple Inc.</option>
+              <option value="GOOGL">GOOGL · Alphabet Inc.</option>
+              <option value="TSLA">TSLA · Tesla Inc.</option>
+              <option value="AMZN">AMZN · Amazon.com Inc.</option>
+            </select>
+          </div>
+
+          <!-- Quantity Input -->
+          <div class="form-group">
+            <label class="form-label" for="input-qty">Quantity (Shares)</label>
+            <input type="number" id="input-qty" class="form-control mono" placeholder="10" min="1" step="1" required />
+          </div>
+
+          <!-- Invoice Summary -->
+          <div style="background-color: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px;">
+              <span>Current Market Price:</span>
+              <span class="mono" id="lbl-market-price">$0.00</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px;">
+              <span>Available Cash:</span>
+              <span class="mono" id="lbl-wallet-cash">$0.00</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span class="form-label" style="margin-bottom: 0;">Estimated Total Cost:</span>
+              <span class="mono" id="lbl-estimated-total" style="font-size: 1.3rem; font-weight: 700; color: var(--green);">$0.00</span>
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <button type="submit" id="btn-submit-order" class="btn-primary">Transmit Order</button>
+        </form>
+
+        <!-- Compliance alerts block -->
+        <div id="trade-alert-box" class="alert-banner">
+          <div class="alert-title" id="trade-alert-title"></div>
+          <div class="alert-desc" id="trade-alert-desc"></div>
+        </div>
+      </section>
+
+      <!-- P4 Integration Note -->
+      <footer style="margin-top: 20px; font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; text-align: center;">
+        <span style="color: var(--red); font-weight: 600;">⚠️ VPC Compliance Notice:</span>
+        Transactions exceeding $50,000 or 1,000 shares will trigger the P4 risk compliance Lambda engine over private VPC endpoints. Confirm actual compliance checking parameters with P4 on WhatsApp.
+      </footer>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+  <script>
+    let currentSide = 'BUY';
+    let activePrice = 0.00;
+
+    // Load wallet balances and sync dropdown
+    async function loadFormContext() {
+      try {
+        const portfolio = await apiRequest('/api/portfolio');
+        document.getElementById('lbl-wallet-cash').textContent = `$${portfolio.cashBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+        syncPrice();
+      } catch (err) {
+        console.error('Failed to load transaction context', err);
+      }
+    }
+
+    async function syncPrice() {
+      const symbol = document.getElementById('select-symbol').value;
+      try {
+        const stocks = await apiRequest('/api/stocks');
+        const target = stocks.find(s => s.symbol === symbol);
+        if (target) {
+          activePrice = target.price;
+          document.getElementById('lbl-market-price').textContent = `$${activePrice.toFixed(2)}`;
+          updateEstimate();
+        }
+      } catch (err) {
+        console.error('Failed to resolve stock price', err);
+      }
+    }
+
+    function updateEstimate() {
+      const qty = parseInt(document.getElementById('input-qty').value) || 0;
+      const total = qty * activePrice;
+      const totalEl = document.getElementById('lbl-estimated-total');
+
+      totalEl.textContent = `$${total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      
+      // Style color based on buy/sell action
+      if (currentSide === 'BUY') {
+        totalEl.style.color = 'var(--green)';
+      } else {
+        totalEl.style.color = 'var(--red)';
+      }
+    }
+
+    // Segment buttons action hook
+    document.getElementById('btn-side-buy').addEventListener('click', () => {
+      currentSide = 'BUY';
+      document.getElementById('btn-side-buy').classList.add('active');
+      document.getElementById('btn-side-sell').classList.remove('active');
+      document.getElementById('btn-submit-order').className = 'btn-primary';
+      document.getElementById('btn-submit-order').textContent = 'Transmit Buy Order';
+      updateEstimate();
+    });
+
+    document.getElementById('btn-side-sell').addEventListener('click', () => {
+      currentSide = 'SELL';
+      document.getElementById('btn-side-sell').classList.add('active', 'sell');
+      document.getElementById('btn-side-buy').classList.remove('active');
+      document.getElementById('btn-submit-order').className = 'btn-primary';
+      document.getElementById('btn-submit-order').style.backgroundColor = 'var(--red)';
+      document.getElementById('btn-submit-order').style.color = '#fff';
+      document.getElementById('btn-submit-order').textContent = 'Transmit Sell Order';
+      updateEstimate();
+    });
+
+    document.getElementById('select-symbol').addEventListener('change', syncPrice);
+    document.getElementById('input-qty').addEventListener('input', updateEstimate);
+
+    // Form submission processing
+    async function handleTradeSubmit(e) {
+      e.preventDefault();
+      
+      const symbol = document.getElementById('select-symbol').value;
+      const qty = parseInt(document.getElementById('input-qty').value);
+      const btn = document.getElementById('btn-submit-order');
+      const alertBox = document.getElementById('trade-alert-box');
+      const alertTitle = document.getElementById('trade-alert-title');
+      const alertDesc = document.getElementById('trade-alert-desc');
+
+      if (!qty || qty <= 0) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Transmitting order through VPC Hub...';
+      alertBox.style.display = 'none';
+
+      try {
+        const orderData = { symbol, side: currentSide, qty };
+        const response = await apiRequest('/api/trade', 'POST', orderData);
+
+        btn.disabled = false;
+        btn.textContent = currentSide === 'BUY' ? 'Transmit Buy Order' : 'Transmit Sell Order';
+        
+        if (response.success) {
+          alertBox.style.display = 'block';
+          
+          if (response.compliance_status === 'FLAGGED') {
+            alertBox.className = 'alert-banner alert-banner-warning';
+            alertTitle.innerHTML = '⚠️ COMPLIANCE RISK ALERT (P4 Lambda Triggered)';
+            alertDesc.innerHTML = `
+              <strong>Status:</strong> ${response.message}<br>
+              <strong>Order ID:</strong> #${response.trade.id}<br>
+              <strong>Compliance Badge:</strong> <span class="badge badge-flagged">${response.compliance_status}</span><br><br>
+              <em>* Notice: This order exceeds either $50,000 or 1,000 shares. P4's compliance rule flagged this for auditing. Confirm actual thresholds with P4 on WhatsApp.</em>
+            `;
+          } else {
+            alertBox.className = 'alert-banner alert-banner-success';
+            alertTitle.innerHTML = '⚡ Order Filled & Logged';
+            alertDesc.innerHTML = `
+              <strong>Status:</strong> Order successfully filed in Multi-AZ central RDS.<br>
+              <strong>Order ID:</strong> #${response.trade.id}<br>
+              <strong>Compliance Badge:</strong> <span class="badge badge-clear">${response.compliance_status}</span><br>
+              <strong>Summary:</strong> ${currentSide} ${qty} shares of ${symbol} at $${response.trade.price.toFixed(2)} each.
+            `;
+          }
+
+          // Reset inputs and reload balance summary
+          document.getElementById('input-qty').value = '';
+          loadFormContext();
+
+        } else {
+          // Transaction logic fail
+          alertBox.style.display = 'block';
+          alertBox.className = 'alert-banner alert-banner-warning';
+          alertTitle.innerHTML = '❌ Order Transmit Error';
+          alertDesc.innerHTML = `
+            <strong>Reason:</strong> ${response.error}<br>
+            <strong>Status:</strong> Transaction rejected by app tier validation engine.
+          `;
+        }
+
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = currentSide === 'BUY' ? 'Transmit Buy Order' : 'Transmit Sell Order';
+        alertBox.style.display = 'block';
+        alertBox.className = 'alert-banner alert-banner-warning';
+        alertTitle.innerHTML = '⚠️ Node Connection Timeout';
+        alertDesc.innerHTML = `
+          <strong>Endpoint unreachable:</strong> <code class="mono">${config.apiHost}/api/trade</code><br>
+          <strong>Description:</strong> Failed to post trade transaction. If running in live environment, ensure App Tier port 5000 is open in security groups to the Web Tier.<br><br>
+          <em>* Note: You can switch to "Local Demo Mode" using the settings gear to simulate trading operations locally.</em>
+        `;
+      }
+    }
+
+    // Dynamic Hook: called by app.js price drift simulation
+    function refreshDashboardPrices() {
+      if (config.apiMode === 'mock') {
+        syncPrice();
+      }
+    }
+
+    // Initial load
+    document.addEventListener('DOMContentLoaded', loadFormContext);
+  </script>
+</body>
+</html>

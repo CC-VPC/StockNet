@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StockNet — Portfolio</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+  <!-- Dynamic Headers Injected by app.js -->
+  <div id="navbar-placeholder"></div>
+  <div id="ticker-placeholder"></div>
+
+  <main class="container">
+    <!-- Section Title -->
+    <header style="margin-bottom: 24px;">
+      <h2 style="font-family: var(--font-heading); margin-bottom: 4px;">User Portfolio</h2>
+      <p style="color: var(--text-muted); font-size: 0.9rem;">
+        Wallet and holdings synchronized with P2 Multi-AZ Central Database <code class="mono" style="color: var(--green);">stock-p2-rds-1</code>
+      </p>
+    </header>
+
+    <!-- Portfolio Summary Tiles -->
+    <section class="grid-summary">
+      <div class="card">
+        <div class="card-title">Net Worth</div>
+        <div class="card-value mono" id="val-net-worth">$0.00</div>
+        <div class="card-change" id="lbl-net-worth-desc">
+          <span style="color: var(--text-muted);">Total liquid wealth</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Market Holdings Value</div>
+        <div class="card-value mono" id="val-holdings-total">$0.00</div>
+        <div class="card-change" id="lbl-holdings-pnl">
+          <span style="color: var(--text-muted);">Calculated value of active shares</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Available Cash</div>
+        <div class="card-value mono" id="val-cash-balance">$0.00</div>
+        <div class="card-change">
+          <span style="color: var(--green); font-weight: 600;">RDS Wallet Online</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Holdings Table Section -->
+    <section class="panel">
+      <div class="panel-header">
+        <h3 class="panel-title" style="font-family: var(--font-heading);">Current Asset Holdings</h3>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Real-time pricing valuation</span>
+      </div>
+      
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Shares</th>
+              <th>Avg Buy Price</th>
+              <th>Current Price</th>
+              <th>Current Value</th>
+              <th style="text-align: right;">Total P&L</th>
+            </tr>
+          </thead>
+          <tbody id="holdings-table-body">
+            <tr>
+              <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">
+                Synchronizing portfolio statement...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+  <script>
+    // Fetch and render portfolio details
+    async function loadPortfolio() {
+      try {
+        const portfolio = await apiRequest('/api/portfolio');
+        renderPortfolio(portfolio);
+      } catch (err) {
+        console.error('Failed to load portfolio details', err);
+      }
+    }
+
+    function renderPortfolio(data) {
+      // 1. Update Metrics Cards
+      document.getElementById('val-net-worth').textContent = `$${data.netWorth.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      document.getElementById('val-holdings-total').textContent = `$${data.totalPortfolioValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      document.getElementById('val-cash-balance').textContent = `$${data.cashBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+      // 2. Render Holdings Table
+      const tableBody = document.getElementById('holdings-table-body');
+      if (!tableBody) return;
+
+      if (!data.holdings || data.holdings.length === 0) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">
+              You do not own any stocks yet. Go to <a href="place-trade.html" style="color: var(--green); text-decoration: none; font-weight: 500;">Place Trade</a> to get started.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      let holdingsHtml = '';
+      let totalPnl = 0;
+      let totalCost = 0;
+
+      data.holdings.forEach(h => {
+        const isUp = h.pnlVal >= 0;
+        const sign = isUp ? '+' : '';
+        const colorClass = isUp ? 'up' : 'down';
+        totalPnl += h.pnlVal;
+        totalCost += h.shares * h.avgBuyPrice;
+
+        holdingsHtml += `
+          <tr>
+            <td style="font-family: var(--font-heading); font-weight: 600; color: var(--green);">${h.symbol}</td>
+            <td class="mono">${h.shares}</td>
+            <td class="mono">$${h.avgBuyPrice.toFixed(2)}</td>
+            <td class="mono" id="row-price-${h.symbol}">$${h.currentPrice.toFixed(2)}</td>
+            <td class="mono" id="row-val-${h.symbol}">$${h.currentValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td class="mono ${colorClass}" id="row-pnl-${h.symbol}" style="text-align: right; font-weight: 600;">
+              ${sign}$${h.pnlVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} (${sign}${h.pnlPct.toFixed(2)}%)
+            </td>
+          </tr>
+        `;
+      });
+
+      tableBody.innerHTML = holdingsHtml;
+
+      // Update global P&L subtitle label under market holdings value card
+      const pnlLabel = document.getElementById('lbl-holdings-pnl');
+      if (pnlLabel) {
+        const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
+        const isUp = totalPnl >= 0;
+        const sign = isUp ? '+' : '';
+        const colorClass = isUp ? 'up' : 'down';
+        pnlLabel.innerHTML = `<span class="${colorClass}" style="font-weight: 600;">${sign}$${totalPnl.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} (${sign}${totalPnlPct.toFixed(2)}%) total returns</span>`;
+      }
+    }
+
+    // Dynamic Hook: called by app.js price drift simulation
+    function refreshDashboardPrices() {
+      // For local mock mode, we trigger a re-render to keep holdings calculations in perfect sync
+      if (config.apiMode === 'mock') {
+        loadPortfolio();
+      }
+    }
+
+    // Initial load
+    document.addEventListener('DOMContentLoaded', loadPortfolio);
+  </script>
+</body>
+</html>
