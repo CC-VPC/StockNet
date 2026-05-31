@@ -1,0 +1,86 @@
+# ============================================================
+# StockNet — Docker Compose
+# Services:
+#   postgres   — PostgreSQL with auto schema + seed on first boot
+#   backend    — FastAPI application (port 8000)
+#   simulation — Price update cron (every 30s)
+# ============================================================
+
+services:
+
+  # ─── PostgreSQL ────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: stocknet-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: stocknetdb
+      POSTGRES_USER: stocknet
+      POSTGRES_PASSWORD: stocknet123
+    ports:
+      - "5432:5432"
+    volumes:
+      # Persist data across container restarts
+      - postgres_data:/var/lib/postgresql/data
+      # Auto-run SQL init scripts on first boot (alphabetical order)
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stocknet -d stocknetdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - stocknet-network
+
+  # ─── FastAPI Backend ───────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: stocknet-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://stocknet:stocknet123@postgres:5432/stocknetdb
+      SECRET_KEY: stocknet-super-secret-key-change-in-production-please
+      ACCESS_TOKEN_EXPIRE_MINUTES: "1440"
+    ports:
+      - "8000:8000"
+    volumes:
+      # Hot-reload in development: mount source code
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - stocknet-network
+
+  # ─── Price Simulation ──────────────────────────────────────
+  simulation:
+    build:
+      context: ./simulation
+      dockerfile: Dockerfile
+    container_name: stocknet-simulation
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: stocknetdb
+      DB_USER: stocknet
+      DB_PASS: stocknet123
+      UPDATE_INTERVAL_SECONDS: "30"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - stocknet-network
+
+# ─── Volumes ────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+
+# ─── Networks ───────────────────────────────────────────────
+networks:
+  stocknet-network:
+    driver: bridge

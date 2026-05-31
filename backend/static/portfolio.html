@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="StockNet Portfolio — your holdings, P&L, and wallet balance.">
+  <title>StockNet — Portfolio</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+
+<body>
+
+  <div id="navbar-placeholder"></div>
+  <div id="ticker-placeholder"></div>
+
+  <main class="container">
+    <header style="margin-bottom:24px;">
+      <h2 style="font-family:var(--font-heading);margin-bottom:4px;">Portfolio</h2>
+      <p style="color:var(--text-muted);font-size:0.88rem;">
+        Real-time holdings valued at current simulated market prices
+      </p>
+    </header>
+
+    <!-- Summary Cards -->
+    <section class="grid-summary">
+      <div class="card">
+        <div class="card-title">Net Worth</div>
+        <div class="card-value mono" id="val-net-worth">—</div>
+        <div class="card-change" style="color:var(--text-muted);font-size:0.82rem;">Wallet + Holdings</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Market Holdings Value</div>
+        <div class="card-value mono" id="val-holdings">—</div>
+        <div class="card-change" id="lbl-pnl" style="font-size:0.82rem;color:var(--text-muted);">P&L loading…</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Available Wallet</div>
+        <div class="card-value mono up" id="val-wallet">—</div>
+        <div class="card-change" style="color:var(--green);font-size:0.82rem;font-weight:600;">Cash Balance</div>
+      </div>
+    </section>
+
+    <!-- Holdings Table -->
+    <section class="panel">
+      <div class="panel-header">
+        <h3 class="panel-title">Current Holdings</h3>
+        <span style="font-size:0.8rem;color:var(--text-muted);">Live price valuation</span>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Company</th>
+              <th>Shares</th>
+              <th>Avg Buy</th>
+              <th>Current Price</th>
+              <th>Current Value</th>
+              <th style="text-align:right;">P&amp;L</th>
+            </tr>
+          </thead>
+          <tbody id="holdings-body">
+            <tr>
+              <td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px;">Loading portfolio…</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+  <script src="app.js"></script>
+  <script>
+    async function loadPortfolio() {
+      try {
+        const data = await api('/portfolio');
+        renderPortfolio(data);
+      } catch (e) {
+        showToast('Failed to load portfolio: ' + e.message, 'error');
+      }
+    }
+
+    function renderPortfolio(data) {
+      const netWorth = data.wallet_balance + data.total_current_value;
+
+      document.getElementById('val-net-worth').textContent = '₹' + formatNum(netWorth);
+      document.getElementById('val-holdings').textContent = '₹' + formatNum(data.total_current_value);
+      document.getElementById('val-wallet').textContent = '₹' + formatNum(data.wallet_balance);
+
+      const pnlEl = document.getElementById('lbl-pnl');
+      const pnl = data.total_pnl;
+      const pct = data.total_invested > 0 ? (pnl / data.total_invested) * 100 : 0;
+      const sign = pnl >= 0 ? '+' : '';
+      pnlEl.className = `card-change ${pnl >= 0 ? 'up' : 'down'}`;
+      pnlEl.textContent = `${sign}₹${formatNum(Math.abs(pnl))} (${sign}${pct.toFixed(2)}%) total P&L`;
+
+      const tbody = document.getElementById('holdings-body');
+      if (!data.holdings || data.holdings.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7">
+              <div class="empty-state">
+                <div class="icon">📭</div>
+                <p>No holdings yet. <a href="/place-trade">Buy your first stock</a> to get started.</p>
+              </div>
+            </td>
+          </tr>`;
+        return;
+      }
+
+      tbody.innerHTML = data.holdings.map(h => {
+        const up = h.pnl >= 0;
+        const sign = up ? '+' : '';
+        const cls = up ? 'up' : 'down';
+        return `
+          <tr>
+            <td style="font-family:var(--font-heading);font-weight:700;color:var(--green);">${h.symbol}</td>
+            <td style="color:var(--text-muted);font-size:0.85rem;">${h.company_name}</td>
+            <td class="mono">${h.quantity}</td>
+            <td class="mono">₹${formatNum(h.avg_buy_price)}</td>
+            <td class="mono">₹${formatNum(h.current_price)}</td>
+            <td class="mono">₹${formatNum(h.current_value)}</td>
+            <td class="mono ${cls}" style="text-align:right;font-weight:700;">
+              ${sign}₹${formatNum(Math.abs(h.pnl))} <br>
+              <span style="font-size:0.75rem;font-weight:500;">(${sign}${h.pnl_pct.toFixed(2)}%)</span>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await initPage('portfolio.html');
+      if (user) await loadPortfolio();
+    });
+  </script>
+</body>
+
+</html>

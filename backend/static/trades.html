@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="StockNet Trade History — complete transaction ledger with filters and pagination.">
+  <title>StockNet — Trade History</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+  <div id="navbar-placeholder"></div>
+  <div id="ticker-placeholder"></div>
+
+  <main class="container">
+    <header style="margin-bottom:24px;">
+      <h2 style="font-family:var(--font-heading);margin-bottom:4px;">Trade Ledger</h2>
+      <p style="color:var(--text-muted);font-size:0.88rem;">
+        Complete transaction log · Risk/compliance status on every order
+      </p>
+    </header>
+
+    <!-- Filters -->
+    <section class="panel" style="padding:16px 20px;margin-bottom:20px;">
+      <div class="filter-bar">
+        <div style="flex:1;min-width:160px;">
+          <label class="form-label" style="font-size:0.72rem;margin-bottom:4px;">Search Symbol</label>
+          <input type="text" id="filter-symbol" class="form-control" placeholder="e.g. TCS">
+        </div>
+        <div style="min-width:130px;">
+          <label class="form-label" style="font-size:0.72rem;margin-bottom:4px;">Order Side</label>
+          <select id="filter-side" class="form-control">
+            <option value="ALL">All Sides</option>
+            <option value="BUY">BUY Only</option>
+            <option value="SELL">SELL Only</option>
+          </select>
+        </div>
+        <div style="min-width:150px;">
+          <label class="form-label" style="font-size:0.72rem;margin-bottom:4px;">Compliance</label>
+          <select id="filter-risk" class="form-control">
+            <option value="ALL">All Statuses</option>
+            <option value="APPROVED">APPROVED</option>
+            <option value="FLAGGED">FLAGGED</option>
+          </select>
+        </div>
+        <div style="align-self:flex-end;">
+          <button id="btn-reset" class="btn-secondary">Reset</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Trades Table -->
+    <section class="panel">
+      <div class="panel-header">
+        <h3 class="panel-title">Transaction Logs</h3>
+        <span id="count-label" style="font-size:0.8rem;color:var(--text-muted);">0 records</span>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>#ID</th>
+              <th>Time</th>
+              <th>Symbol</th>
+              <th>Side</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th>Total</th>
+              <th style="text-align:right;">Compliance</th>
+            </tr>
+          </thead>
+          <tbody id="trades-body">
+            <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px;">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <footer class="pagination">
+        <div class="page-info" id="page-info">Showing 0-0 of 0</div>
+        <div class="page-controls">
+          <button id="btn-prev" class="btn-secondary">← Prev</button>
+          <button id="btn-next" class="btn-secondary">Next →</button>
+        </div>
+      </footer>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+  <script src="/static/app.js"></script>
+  <script>
+    let allTrades = [];
+    let filtered  = [];
+    let page      = 1;
+    const PER_PAGE = 15;
+
+    async function loadTrades() {
+      try {
+        allTrades = await api('/transactions?limit=500');
+        // Enrich with risk status from backend response
+        applyFilters();
+      } catch (e) {
+        showToast('Failed to load trades: ' + e.message, 'error');
+      }
+    }
+
+    function applyFilters() {
+      const sym  = document.getElementById('filter-symbol').value.trim().toUpperCase();
+      const side = document.getElementById('filter-side').value;
+      const risk = document.getElementById('filter-risk').value;
+
+      filtered = allTrades.filter(t => {
+        if (sym  && !t.symbol.includes(sym))              return false;
+        if (side !== 'ALL' && t.type !== side)            return false;
+        return true;
+      });
+
+      page = 1;
+      renderTable();
+    }
+
+    function renderTable() {
+      const tbody    = document.getElementById('trades-body');
+      const total    = filtered.length;
+      const totalPgs = Math.ceil(total / PER_PAGE) || 1;
+      if (page > totalPgs) page = totalPgs;
+      if (page < 1) page = 1;
+
+      const start = (page - 1) * PER_PAGE;
+      const end   = Math.min(start + PER_PAGE, total);
+      const slice = filtered.slice(start, end);
+
+      document.getElementById('count-label').textContent = `${total} record${total !== 1 ? 's' : ''}`;
+      document.getElementById('page-info').textContent   = `Showing ${total ? start+1 : 0}–${end} of ${total} (Page ${page}/${totalPgs})`;
+      document.getElementById('btn-prev').disabled = page === 1;
+      document.getElementById('btn-next').disabled = page >= totalPgs;
+
+      if (total === 0) {
+        tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="icon">🔍</div><p>No transactions match your filters.</p></div></td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = slice.map(t => {
+        const sideCls = t.type === 'BUY' ? 'badge-buy' : 'badge-sell';
+        const riskCls = t.risk_status === 'FLAGGED' ? 'badge-flagged' : 'badge-clear';
+        const total   = t.total_value || (t.price * t.quantity);
+        return `
+          <tr>
+            <td class="mono" style="color:var(--text-muted);font-size:0.8rem;">#${t.id}</td>
+            <td class="mono" style="font-size:0.8rem;color:var(--text-muted);">${formatDate(t.timestamp)}</td>
+            <td style="font-family:var(--font-heading);font-weight:700;color:var(--green);">${t.symbol}</td>
+            <td><span class="badge ${sideCls}" style="font-size:0.68rem;">${t.type}</span></td>
+            <td class="mono">${t.quantity}</td>
+            <td class="mono">₹${formatNum(t.price)}</td>
+            <td class="mono">₹${formatNum(total)}</td>
+            <td style="text-align:right;"><span class="badge ${riskCls}" style="font-size:0.68rem;">${t.risk_status || 'N/A'}</span></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Filter events
+    document.getElementById('filter-symbol').addEventListener('input', applyFilters);
+    document.getElementById('filter-side').addEventListener('change', applyFilters);
+    document.getElementById('filter-risk').addEventListener('change', applyFilters);
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      document.getElementById('filter-symbol').value = '';
+      document.getElementById('filter-side').value = 'ALL';
+      document.getElementById('filter-risk').value = 'ALL';
+      applyFilters();
+    });
+
+    // Pagination
+    document.getElementById('btn-prev').addEventListener('click', () => { page--; renderTable(); });
+    document.getElementById('btn-next').addEventListener('click', () => { page++; renderTable(); });
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await initPage('trades.html');
+      if (user) await loadTrades();
+    });
+  </script>
+</body>
+</html>

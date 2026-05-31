@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="StockNet — Place a buy or sell order with live price preview.">
+  <title>StockNet — Place Trade</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+  <div id="navbar-placeholder"></div>
+  <div id="ticker-placeholder"></div>
+
+  <main class="container">
+    <div style="max-width:580px;margin:0 auto;">
+      <header style="margin-bottom:24px;text-align:center;">
+        <h2 style="font-family:var(--font-heading);margin-bottom:4px;">Execute Order</h2>
+        <p style="color:var(--text-muted);font-size:0.88rem;">
+          Orders are executed at the current simulated market price
+        </p>
+      </header>
+
+      <section class="panel" style="padding:28px;">
+        <form id="trade-form" onsubmit="handleTrade(event)">
+
+          <!-- BUY / SELL Toggle -->
+          <div class="form-group">
+            <label class="form-label">Order Action</label>
+            <div class="segmented-control">
+              <button type="button" class="segment-btn active buy" id="btn-buy">BUY</button>
+              <button type="button" class="segment-btn" id="btn-sell">SELL</button>
+            </div>
+          </div>
+
+          <!-- Stock Selection -->
+          <div class="form-group">
+            <label class="form-label" for="select-stock">Select Stock</label>
+            <select id="select-stock" class="form-control mono" required>
+              <option value="">Loading stocks…</option>
+            </select>
+          </div>
+
+          <!-- Quantity -->
+          <div class="form-group">
+            <label class="form-label" for="input-qty">Quantity (Shares)</label>
+            <input type="number" id="input-qty" class="form-control mono" placeholder="10" min="1" step="1" required>
+          </div>
+
+          <!-- Invoice Preview -->
+          <div class="invoice-box">
+            <div class="invoice-row">
+              <span>Current Market Price</span>
+              <span class="mono" id="lbl-price">—</span>
+            </div>
+            <div class="invoice-row">
+              <span>Your Wallet Balance</span>
+              <span class="mono" id="lbl-wallet">—</span>
+            </div>
+            <div class="invoice-row" id="holdings-row" style="display:none;">
+              <span>Shares You Own</span>
+              <span class="mono" id="lbl-owned">0</span>
+            </div>
+            <div class="invoice-row">
+              <span>Estimated Total</span>
+              <span class="mono" id="lbl-total" style="color:var(--green);font-size:1.15rem;">₹0.00</span>
+            </div>
+          </div>
+
+          <!-- Submit -->
+          <button type="submit" id="btn-submit" class="btn-primary">Transmit Buy Order</button>
+        </form>
+
+        <!-- Result Banner -->
+        <div id="alert-box" class="alert-banner">
+          <div class="alert-title" id="alert-title"></div>
+          <div class="alert-desc"  id="alert-desc"></div>
+        </div>
+      </section>
+
+      <!-- Risk Notice -->
+      <footer style="margin-top:16px;font-size:0.75rem;color:var(--text-muted);text-align:center;line-height:1.6;">
+        <span style="color:var(--red);font-weight:700;">⚠ Compliance Notice:</span>
+        Trades exceeding <strong>₹10,000 total</strong> are automatically flagged by the Risk Engine and logged to the audit trail.
+      </footer>
+    </div>
+  </main>
+
+  <div id="toast"></div>
+  <script src="/static/app.js"></script>
+  <script>
+    let side = 'BUY';
+    let stocks = [];
+    let portfolio = null;
+    let currentPrice = 0;
+
+    async function loadContext() {
+      try {
+        stocks = await api('/stocks');
+        const sel = document.getElementById('select-stock');
+        sel.innerHTML = stocks.map(s =>
+          `<option value="${s.id}" data-price="${s.current_price}">${s.symbol} · ${s.company_name} · ₹${formatNum(s.current_price)}</option>`
+        ).join('');
+        syncPrice();
+      } catch (e) { showToast('Failed to load stocks', 'error'); }
+
+      try {
+        portfolio = await api('/portfolio');
+        document.getElementById('lbl-wallet').textContent = '₹' + formatNum(portfolio.wallet_balance);
+      } catch {}
+    }
+
+    function syncPrice() {
+      const sel = document.getElementById('select-stock');
+      const opt = sel.options[sel.selectedIndex];
+      currentPrice = opt ? parseFloat(opt.getAttribute('data-price')) : 0;
+      document.getElementById('lbl-price').textContent = currentPrice ? '₹' + formatNum(currentPrice) : '—';
+
+      // Show owned shares for SELL mode
+      if (side === 'SELL' && portfolio) {
+        const stockId = parseInt(sel.value);
+        const stock = stocks.find(s => s.id === stockId);
+        const h = stock && portfolio.holdings ? portfolio.holdings.find(h => h.stock_id === stockId) : null;
+        if (h) {
+          document.getElementById('lbl-owned').textContent = h.quantity;
+          document.getElementById('holdings-row').style.display = '';
+        } else {
+          document.getElementById('lbl-owned').textContent = '0';
+          document.getElementById('holdings-row').style.display = '';
+        }
+      } else {
+        document.getElementById('holdings-row').style.display = 'none';
+      }
+
+      updateEstimate();
+    }
+
+    function updateEstimate() {
+      const qty   = parseInt(document.getElementById('input-qty').value) || 0;
+      const total = qty * currentPrice;
+      const el    = document.getElementById('lbl-total');
+      el.textContent = '₹' + formatNum(total);
+      el.style.color = side === 'BUY' ? 'var(--green)' : 'var(--red)';
+    }
+
+    // BUY/SELL toggle
+    document.getElementById('btn-buy').addEventListener('click', () => {
+      side = 'BUY';
+      document.getElementById('btn-buy').className  = 'segment-btn active buy';
+      document.getElementById('btn-sell').className = 'segment-btn';
+      const btn = document.getElementById('btn-submit');
+      btn.className = 'btn-primary';
+      btn.textContent = 'Transmit Buy Order';
+      syncPrice();
+    });
+    document.getElementById('btn-sell').addEventListener('click', () => {
+      side = 'SELL';
+      document.getElementById('btn-sell').className = 'segment-btn active sell';
+      document.getElementById('btn-buy').className  = 'segment-btn';
+      const btn = document.getElementById('btn-submit');
+      btn.className = 'btn-danger';
+      btn.textContent = 'Transmit Sell Order';
+      syncPrice();
+    });
+
+    document.getElementById('select-stock').addEventListener('change', syncPrice);
+    document.getElementById('input-qty').addEventListener('input', updateEstimate);
+
+    // Trade submission
+    async function handleTrade(e) {
+      e.preventDefault();
+      const btn    = document.getElementById('btn-submit');
+      const box    = document.getElementById('alert-box');
+      const title  = document.getElementById('alert-title');
+      const desc   = document.getElementById('alert-desc');
+      const stockId = parseInt(document.getElementById('select-stock').value);
+      const qty     = parseInt(document.getElementById('input-qty').value);
+
+      if (!stockId || !qty || qty < 1) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Transmitting order…';
+      box.style.display = 'none';
+
+      try {
+        const endpoint = side === 'BUY' ? '/trades/buy' : '/trades/sell';
+        const result = await api(endpoint, 'POST', { stock_id: stockId, quantity: qty });
+
+        box.style.display = 'block';
+        const flagged = result.risk_status === 'FLAGGED';
+        box.className = `alert-banner ${flagged ? 'alert-banner-warning' : 'alert-banner-success'}`;
+        title.textContent = flagged ? '⚠️ Order Filled — Compliance Flagged' : '⚡ Order Filled Successfully';
+        desc.innerHTML = `
+          <strong>Type:</strong> ${result.type} · ${result.quantity} shares<br>
+          <strong>Execution Price:</strong> ₹${formatNum(result.price)}<br>
+          <strong>Total:</strong> ₹${formatNum(result.total_value)}<br>
+          <strong>Wallet Balance:</strong> ₹${formatNum(result.wallet_balance)}<br>
+          <strong>Risk Status:</strong> <span class="badge ${flagged ? 'badge-flagged' : 'badge-clear'}">${result.risk_status}</span>
+          ${flagged ? '<br><br><em>Trades over ₹10,000 are automatically flagged for audit.</em>' : ''}
+        `;
+
+        showToast(`${result.type} order executed!`, 'success');
+        document.getElementById('input-qty').value = '';
+
+        // Refresh wallet
+        portfolio = await api('/portfolio');
+        document.getElementById('lbl-wallet').textContent = '₹' + formatNum(portfolio.wallet_balance);
+
+      } catch (err) {
+        box.style.display = 'block';
+        box.className = 'alert-banner alert-banner-warning';
+        title.textContent = '❌ Order Failed';
+        desc.textContent = err.message;
+        showToast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = side === 'BUY' ? 'Transmit Buy Order' : 'Transmit Sell Order';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await initPage('place-trade.html');
+      if (user) await loadContext();
+    });
+  </script>
+</body>
+</html>

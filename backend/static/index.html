@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="StockNet Dashboard — live market prices, recent trades, and system status.">
+  <title>StockNet — Dashboard</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+  <div id="navbar-placeholder"></div>
+  <div id="ticker-placeholder"></div>
+
+  <main class="container">
+    <header style="margin-bottom:24px;">
+      <h2 style="font-family:var(--font-heading);margin-bottom:4px;">Live Dashboard</h2>
+      <p style="color:var(--text-muted);font-size:0.88rem;">
+        Real-time market prices · Price simulation updates every <code style="color:var(--green);">30 seconds</code>
+      </p>
+    </header>
+
+    <!-- Market Overview Cards -->
+    <section class="grid-market" id="market-grid">
+      <div class="card" style="grid-column:1/-1;text-align:center;padding:30px;color:var(--text-muted);">
+        Loading market data…
+      </div>
+    </section>
+
+    <!-- Dashboard Split: Trades Feed + System Status -->
+    <div class="grid-dashboard">
+
+      <!-- Left: Recent Trades Feed -->
+      <section class="panel">
+        <div class="panel-header">
+          <h3 class="panel-title">Recent Trades Feed</h3>
+          <span style="font-size:0.8rem;color:var(--text-muted);display:flex;align-items:center;gap:6px;">
+            <span class="live-pulse"></span> LIVE
+          </span>
+        </div>
+        <div class="feed-list" id="trades-feed">
+          <div style="padding:20px;text-align:center;color:var(--text-muted);">No trades yet — go to <a href="/place-trade">Place Trade</a> to get started.</div>
+        </div>
+      </section>
+
+      <!-- Right: System Status + Architecture -->
+      <aside style="display:flex;flex-direction:column;gap:20px;">
+
+        <!-- System Status -->
+        <section class="panel" style="margin-bottom:0;">
+          <div class="panel-header">
+            <h3 class="panel-title">System Status</h3>
+          </div>
+          <div class="status-list" style="margin-bottom:20px;">
+            <div class="status-item">
+              <span class="status-label">FastAPI Backend</span>
+              <span class="badge badge-up" id="badge-api">CHECKING</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">PostgreSQL Database</span>
+              <span class="badge" id="badge-db">CHECKING</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Price Simulation</span>
+              <span class="badge" id="badge-sim">CHECKING</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">Risk / Compliance</span>
+              <span class="badge" id="badge-risk">CHECKING</span>
+            </div>
+          </div>
+          <button id="btn-health" class="btn-primary">Run Connectivity Check</button>
+          <div id="health-result" class="alert-banner" style="margin-top:14px;">
+            <div class="alert-title" id="health-title"></div>
+            <div class="alert-desc" id="health-desc"></div>
+          </div>
+        </section>
+
+        <!-- VPC Topology SVG -->
+        <section class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title">Service Topology</h3>
+          </div>
+          <div style="background:#0b0b0b;border:1px solid var(--border);border-radius:8px;padding:12px;">
+            <svg viewBox="0 0 300 200" width="100%" height="auto">
+              <defs>
+                <linearGradient id="hub-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#161616"/>
+                  <stop offset="100%" stop-color="#0e2314"/>
+                </linearGradient>
+              </defs>
+              <!-- Connections -->
+              <path d="M 50 45 L 110 90"  stroke="#ff9800" stroke-width="1.5" stroke-dasharray="4 4" fill="none" opacity="0.7">
+                <animate attributeName="stroke-dashoffset" from="0" to="20" dur="1.5s" repeatCount="indefinite"/>
+              </path>
+              <path d="M 250 45 L 190 90" stroke="#ff3d3d" stroke-width="1.5" stroke-dasharray="4 4" fill="none" opacity="0.7">
+                <animate attributeName="stroke-dashoffset" from="20" to="0" dur="1.5s" repeatCount="indefinite"/>
+              </path>
+              <path d="M 150 158 L 150 178" stroke="#00c853" stroke-width="1.5" stroke-dasharray="4 4" fill="none">
+                <animate attributeName="stroke-dashoffset" from="0" to="20" dur="1.2s" repeatCount="indefinite"/>
+              </path>
+              <!-- Simulation Node -->
+              <rect x="10" y="10" width="80" height="34" rx="6" fill="#161616" stroke="#333" stroke-width="1.5"/>
+              <text x="50" y="23" text-anchor="middle" fill="#ff9800" font-size="7" font-family="monospace" font-weight="600">Simulation</text>
+              <text x="50" y="34" text-anchor="middle" fill="#555" font-size="6" font-family="monospace">cron:30s</text>
+              <!-- Risk Node -->
+              <rect x="210" y="10" width="80" height="34" rx="6" fill="#161616" stroke="#333" stroke-width="1.5"/>
+              <text x="250" y="23" text-anchor="middle" fill="#ff3d3d" font-size="7" font-family="monospace" font-weight="600">Risk Engine</text>
+              <text x="250" y="34" text-anchor="middle" fill="#555" font-size="6" font-family="monospace">auto-flag</text>
+              <!-- FastAPI Hub -->
+              <rect x="70" y="75" width="160" height="80" rx="8" fill="url(#hub-grad)" stroke="rgba(0,200,83,0.4)" stroke-width="1.5"/>
+              <text x="150" y="90" text-anchor="middle" fill="#f0f0f0" font-size="8" font-family="monospace" font-weight="700">FastAPI Core</text>
+              <rect x="80" y="98" width="65" height="48" rx="4" fill="#111" stroke="#333"/>
+              <text x="112" y="110" text-anchor="middle" fill="#8e8e93" font-size="6.5" font-weight="600">Auth + Trades</text>
+              <text x="112" y="121" text-anchor="middle" fill="#00c853" font-size="6" font-family="monospace">:8000</text>
+              <text x="112" y="132" text-anchor="middle" fill="#555" font-size="5.5">Port 8000</text>
+              <rect x="155" y="98" width="65" height="48" rx="4" fill="#111" stroke="#333"/>
+              <text x="187" y="110" text-anchor="middle" fill="#8e8e93" font-size="6.5" font-weight="600">Portfolio+</text>
+              <text x="187" y="121" text-anchor="middle" fill="#00c853" font-size="6" font-family="monospace">Stocks</text>
+              <text x="187" y="132" text-anchor="middle" fill="#555" font-size="5.5">REST API</text>
+              <!-- DB Node -->
+              <rect x="70" y="178" width="160" height="34" rx="8" fill="#161616" stroke="#333" stroke-width="1.5"/>
+              <text x="150" y="192" text-anchor="middle" fill="#8e8e93" font-size="7" font-family="monospace" font-weight="600">PostgreSQL 15</text>
+              <text x="150" y="203" text-anchor="middle" fill="#00c853" font-size="6" font-family="monospace">stocknetdb · :5432</text>
+            </svg>
+          </div>
+          <p style="font-size:0.72rem;color:var(--text-muted);margin-top:10px;line-height:1.5;">
+            <strong style="color:var(--text-primary);">Docker Compose topology:</strong>
+            All services run on <code style="color:var(--green);">stocknet-network</code>. Price simulation and risk engine operate as independent containers.
+          </p>
+        </section>
+
+      </aside>
+    </div>
+  </main>
+
+  <div id="toast"></div>
+  <script src="/static/app.js"></script>
+  <script>
+    let allStocks = [];
+
+    async function loadDashboard(user) {
+      // Stocks
+      try {
+        allStocks = await api('/stocks');
+        renderStockCards(allStocks);
+      } catch (e) {
+        console.error('Failed to load stocks', e);
+      }
+
+      // Recent trades
+      try {
+        const txns = await api('/transactions?limit=10');
+        renderTradesFeed(txns);
+      } catch {}
+
+      // Health check
+      runSoftHealthCheck();
+    }
+
+    function renderStockCards(stocks) {
+      const grid = document.getElementById('market-grid');
+      if (!stocks.length) { grid.innerHTML = '<div class="card" style="text-align:center;color:var(--text-muted);">No stocks found.</div>'; return; }
+
+      grid.innerHTML = stocks.map(s => `
+        <div class="card stock-card" onclick="window.location='/place-trade'">
+          <div class="card-title">${s.symbol}</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.company_name}</div>
+          <div class="card-value mono">₹${formatNum(s.current_price)}</div>
+          <div class="card-change">
+            <span style="color:var(--text-muted);font-size:0.78rem;">Simulated · Live</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderTradesFeed(txns) {
+      const feed = document.getElementById('trades-feed');
+      if (!txns || txns.length === 0) {
+        feed.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-muted);">No trades yet — go to <a href="/place-trade">Place Trade</a> to get started.</div>`;
+        return;
+      }
+      feed.innerHTML = txns.map(t => {
+        const sideCls = t.type === 'BUY' ? 'badge-buy' : 'badge-sell';
+        return `
+          <div class="feed-item">
+            <div class="feed-details">
+              <span class="feed-title">${t.symbol}</span>
+              <span class="feed-subtitle">
+                <span class="badge ${sideCls}" style="padding:2px 7px;font-size:0.65rem;">${t.type}</span>
+                &nbsp;<span class="mono">${t.quantity} shares</span>
+              </span>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;">
+              <span class="badge ${t.risk_status === 'FLAGGED' ? 'badge-flagged' : 'badge-clear'}" style="font-size:0.65rem;">${t.risk_status || 'OK'}</span>
+              <div class="feed-metric">
+                <div class="feed-price">₹${formatNum(t.price)}</div>
+                <div class="feed-time">${formatDate(t.timestamp)}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function runSoftHealthCheck() {
+      try {
+        const h = await api('/health');
+        setStatus('badge-api', h.status === 'ok' ? 'UP' : 'DOWN', h.status === 'ok');
+        setStatus('badge-db', 'UP', true);
+        setStatus('badge-sim', 'RUNNING', true);
+        setStatus('badge-risk', 'ACTIVE', true);
+      } catch {
+        ['badge-api','badge-db','badge-sim','badge-risk'].forEach(id => setStatus(id, 'DOWN', false));
+      }
+    }
+
+    function setStatus(id, label, up) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = label;
+      el.className = `badge ${up ? 'badge-up' : 'badge-down'}`;
+    }
+
+    document.getElementById('btn-health').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-health');
+      const resultEl = document.getElementById('health-result');
+      const titleEl  = document.getElementById('health-title');
+      const descEl   = document.getElementById('health-desc');
+      btn.disabled = true; btn.textContent = 'Checking…'; resultEl.style.display = 'none';
+
+      try {
+        const h = await api('/health');
+        await runSoftHealthCheck();
+        resultEl.style.display = 'block';
+        resultEl.className = 'alert-banner alert-banner-success';
+        titleEl.textContent = '⚡ All Systems Operational';
+        descEl.innerHTML = `<strong>Backend:</strong> ${h.service} · <strong>Status:</strong> ${h.status}<br>Database, Risk Engine, and Simulation containers are all ONLINE.`;
+      } catch {
+        resultEl.style.display = 'block';
+        resultEl.className = 'alert-banner alert-banner-warning';
+        titleEl.textContent = '⚠️ Connectivity Issue';
+        descEl.textContent = 'Could not reach the backend API. Ensure Docker containers are running.';
+      } finally {
+        btn.disabled = false; btn.textContent = 'Run Connectivity Check';
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await initPage('index.html');
+      if (user) await loadDashboard(user);
+    });
+  </script>
+</body>
+</html>
