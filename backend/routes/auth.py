@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import User
-from schemas import UserRegister, UserLogin, TokenResponse
+from schemas import UserRegister, UserLogin, TokenResponse, ProfileUpdate, WalletTransaction
 from auth import (
     hash_password, verify_password, create_access_token,
     COOKIE_NAME, ACCESS_TOKEN_EXPIRE_MINUTES, get_current_user
@@ -105,4 +105,88 @@ def me(current_user: User = Depends(get_current_user)):
         "name": current_user.name,
         "email": current_user.email,
         "wallet_balance": float(current_user.wallet_balance),
+    }
+
+
+@router.put("/profile", tags=["Authentication"])
+def update_profile(
+    payload: ProfileUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update name, email, and/or password.
+    """
+    if payload.email and payload.email != current_user.email:
+        # Check if email is already taken
+        existing = db.query(User).filter(User.email == payload.email).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already registered",
+            )
+        current_user.email = payload.email
+
+    if payload.name:
+        current_user.name = payload.name
+
+    if payload.password:
+        current_user.password_hash = hash_password(payload.password)
+
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+
+    return {
+        "message": "Profile updated successfully",
+        "name": current_user.name,
+        "email": current_user.email,
+        "wallet_balance": float(current_user.wallet_balance)
+    }
+
+
+@router.post("/deposit", tags=["Authentication"])
+def deposit(
+    payload: WalletTransaction,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Deposit simulated funds.
+    """
+    from decimal import Decimal
+    amount = Decimal(str(payload.amount))
+    current_user.wallet_balance += amount
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return {
+        "message": f"Deposited ₹{float(amount):,.2f} successfully",
+        "wallet_balance": float(current_user.wallet_balance)
+    }
+
+
+@router.post("/withdraw", tags=["Authentication"])
+def withdraw(
+    payload: WalletTransaction,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Withdraw simulated funds.
+    """
+    from decimal import Decimal
+    amount = Decimal(str(payload.amount))
+    if current_user.wallet_balance < amount:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Insufficient funds for withdrawal. Available: ₹{float(current_user.wallet_balance):,.2f}"
+        )
+    current_user.wallet_balance -= amount
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return {
+        "message": f"Withdrew ₹{float(amount):,.2f} successfully",
+        "wallet_balance": float(current_user.wallet_balance)
     }

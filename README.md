@@ -8,13 +8,24 @@ A simulated stock trading platform built with **FastAPI**, **PostgreSQL**, **Doc
 
 ## 🚀 Quick Start
 
-```bash
-git clone <repo>
-cd StockNet
-docker compose up --build -d
-```
+1. Clone the repository and navigate to the project directory:
+   ```bash
+   git clone <repo>
+   cd StockNet
+   ```
 
-Open **[http://localhost:8000/login](http://localhost:8000/login)** in your browser.
+2. Copy the `.env.example` file to create a `.env` file:
+   ```bash
+   cp .env.example .env
+   ```
+   *(For Windows PowerShell, use `copy .env.example .env`)*
+
+3. Build and launch the containerized application:
+   ```bash
+   docker compose up --build -d
+   ```
+
+Open **[http://localhost:8000/login](http://localhost:8000/login)** in your browser (or use the custom `BACKEND_PORT` configured in your `.env` file).
 
 **Demo credentials:**
 
@@ -97,7 +108,7 @@ StockNet/
 
 All API endpoints are prefixed with `/api`.
 
-#### Authentication — `/api/auth`
+#### Authentication & Profile — `/api/auth`
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
@@ -105,6 +116,9 @@ All API endpoints are prefixed with `/api`.
 | `POST` | `/api/auth/login` | ❌ | Login — sets HttpOnly cookie |
 | `POST` | `/api/auth/logout` | ✅ | Clear cookie |
 | `GET` | `/api/auth/me` | ✅ | Get current user profile |
+| `PUT` | `/api/auth/profile` | ✅ | Update name, email, and/or password |
+| `POST` | `/api/auth/deposit` | ✅ | Deposit simulated funds into wallet |
+| `POST` | `/api/auth/withdraw` | ✅ | Withdraw simulated funds from wallet |
 
 #### Stocks — `/api/stocks`
 
@@ -112,6 +126,13 @@ All API endpoints are prefixed with `/api`.
 |---|---|---|---|
 | `GET` | `/api/stocks` | ❌ | List all 20 stocks with live prices |
 | `GET` | `/api/stocks/{id}` | ❌ | Get single stock detail |
+
+#### Watchlist — `/api/watchlist`
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/watchlist` | ✅ | Get list of watchlisted stocks |
+| `POST` | `/api/watchlist` | ✅ | Toggle watch status for a stock (`{"stock_id": int}`) |
 
 #### Trades — `/api/trades`
 
@@ -124,7 +145,7 @@ All API endpoints are prefixed with `/api`.
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| `GET` | `/api/portfolio` | ✅ | Holdings + P&L + wallet balance |
+| `GET` | `/api/portfolio` | ✅ | Holdings (active & closed) + P&L + wallet balance |
 
 #### Transactions — `/api/transactions`
 
@@ -217,6 +238,14 @@ holdings
   stock_id        INT   → stocks(id)
   quantity        INT
   avg_buy_price   NUMERIC(10,2)
+  realized_pnl    NUMERIC(15,2)   DEFAULT 0.00
+  UNIQUE(user_id, stock_id)
+
+watchlists
+  id              SERIAL PRIMARY KEY
+  user_id         INT   → users(id)
+  stock_id        INT   → stocks(id)
+  created_at      TIMESTAMP
   UNIQUE(user_id, stock_id)
 
 transactions

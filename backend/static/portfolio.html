@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="StockNet Portfolio — your holdings, P&L, and wallet balance.">
   <title>StockNet — Portfolio</title>
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/app.css?v=2">
 </head>
 
 <body>
@@ -41,11 +41,11 @@
       </div>
     </section>
 
-    <!-- Holdings Table -->
-    <section class="panel">
+    <!-- Active Holdings Table -->
+    <section class="panel" style="margin-bottom:24px;">
       <div class="panel-header">
-        <h3 class="panel-title">Current Holdings</h3>
-        <span style="font-size:0.8rem;color:var(--text-muted);">Live price valuation</span>
+        <h3 class="panel-title">Active Holdings</h3>
+        <span style="font-size:0.8rem;color:var(--text-muted);">Current live valuations</span>
       </div>
       <div class="table-container">
         <table>
@@ -54,16 +54,61 @@
               <th>Symbol</th>
               <th>Company</th>
               <th>Shares</th>
-              <th>Avg Buy</th>
+              <th>Avg Buy Price</th>
+              <th>Buy Value</th>
               <th>Current Price</th>
               <th>Current Value</th>
-              <th style="text-align:right;">P&amp;L</th>
+              <th style="text-align:right;">Unrealized P&amp;L</th>
             </tr>
           </thead>
-          <tbody id="holdings-body">
+          <tbody id="active-holdings-body">
+            <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px;">Loading active portfolio…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Closed Positions Table -->
+    <section class="panel" style="margin-bottom:24px;">
+      <div class="panel-header">
+        <h3 class="panel-title">Closed Positions (Past Holdings)</h3>
+        <span style="font-size:0.8rem;color:var(--text-muted);">Realized performance logs</span>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
             <tr>
-              <td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px;">Loading portfolio…</td>
+              <th>Symbol</th>
+              <th>Company</th>
+              <th>Avg Buy (when open)</th>
+              <th style="text-align:right;">Realized P&amp;L</th>
             </tr>
+          </thead>
+          <tbody id="closed-holdings-body">
+            <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:30px;">Loading closed positions…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Watchlist Panel -->
+    <section class="panel" id="watchlist-panel" style="display:none;margin-bottom:24px;">
+      <div class="panel-header">
+        <h3 class="panel-title">Watchlist Quick View</h3>
+        <span style="font-size:0.8rem;color:var(--text-muted);">Watched stock prices</span>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Company</th>
+              <th>Current Price</th>
+              <th style="text-align:right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="watchlist-body">
+            <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">No watched stocks.</td></tr>
           </tbody>
         </table>
       </div>
@@ -71,7 +116,7 @@
   </main>
 
   <div id="toast"></div>
-  <script src="app.js"></script>
+  <script src="/static/app.js?v=2"></script>
   <script>
     async function loadPortfolio() {
       try {
@@ -80,55 +125,112 @@
       } catch (e) {
         showToast('Failed to load portfolio: ' + e.message, 'error');
       }
+
+      try {
+        const wl = await getWatchlist();
+        renderWatchlist(wl);
+      } catch (e) {
+        console.error('Failed to load watchlist', e);
+      }
     }
 
     function renderPortfolio(data) {
       const netWorth = data.wallet_balance + data.total_current_value;
 
       document.getElementById('val-net-worth').textContent = '₹' + formatNum(netWorth);
-      document.getElementById('val-holdings').textContent = '₹' + formatNum(data.total_current_value);
-      document.getElementById('val-wallet').textContent = '₹' + formatNum(data.wallet_balance);
+      document.getElementById('val-holdings').textContent  = '₹' + formatNum(data.total_current_value);
+      document.getElementById('val-wallet').textContent    = '₹' + formatNum(data.wallet_balance);
 
       const pnlEl = document.getElementById('lbl-pnl');
-      const pnl = data.total_pnl;
-      const pct = data.total_invested > 0 ? (pnl / data.total_invested) * 100 : 0;
-      const sign = pnl >= 0 ? '+' : '';
+      const pnl   = data.total_pnl;
+      const sign  = pnl >= 0 ? '+' : '';
       pnlEl.className = `card-change ${pnl >= 0 ? 'up' : 'down'}`;
-      pnlEl.textContent = `${sign}₹${formatNum(Math.abs(pnl))} (${sign}${pct.toFixed(2)}%) total P&L`;
+      pnlEl.textContent = `${sign}₹${formatNum(Math.abs(pnl))} total P&L (Realized + Unrealized)`;
 
-      const tbody = document.getElementById('holdings-body');
-      if (!data.holdings || data.holdings.length === 0) {
-        tbody.innerHTML = `
+      const active = data.holdings.filter(h => h.quantity > 0);
+      const closed = data.holdings.filter(h => h.quantity === 0);
+
+      // Render Active
+      const activeTbody = document.getElementById('active-holdings-body');
+      if (active.length === 0) {
+        activeTbody.innerHTML = `
           <tr>
-            <td colspan="7">
-              <div class="empty-state">
-                <div class="icon">📭</div>
-                <p>No holdings yet. <a href="/place-trade">Buy your first stock</a> to get started.</p>
+            <td colspan="8">
+              <div class="empty-state" style="padding:20px;text-align:center;color:var(--text-muted);">
+                <div class="icon" style="font-size:1.5rem;margin-bottom:6px;">📭</div>
+                <p>No active holdings. <a href="/place-trade">Buy your first stock</a> to get started.</p>
               </div>
             </td>
           </tr>`;
-        return;
+      } else {
+        activeTbody.innerHTML = active.map(h => {
+          const up   = h.unrealized_pnl >= 0;
+          const sign = up ? '+' : '';
+          const cls  = up ? 'up' : 'down';
+          return `
+            <tr>
+              <td style="font-family:var(--font-heading);font-weight:700;color:var(--green);"><a href="/place-trade?stock_id=${h.stock_id}" style="color:inherit;text-decoration:none;">${h.symbol}</a></td>
+              <td style="color:var(--text-muted);font-size:0.85rem;">${h.company_name}</td>
+              <td class="mono">${h.quantity}</td>
+              <td class="mono">₹${formatNum(h.avg_buy_price)}</td>
+              <td class="mono">₹${formatNum(h.buy_value)}</td>
+              <td class="mono">₹${formatNum(h.current_price)}</td>
+              <td class="mono">₹${formatNum(h.current_value)}</td>
+              <td class="mono ${cls}" style="text-align:right;font-weight:700;">
+                ${sign}₹${formatNum(Math.abs(h.unrealized_pnl))} <br>
+                <span style="font-size:0.75rem;font-weight:500;">(${sign}${h.unrealized_pnl_pct.toFixed(2)}%)</span>
+              </td>
+            </tr>
+          `;
+        }).join('');
       }
 
-      tbody.innerHTML = data.holdings.map(h => {
-        const up = h.pnl >= 0;
-        const sign = up ? '+' : '';
-        const cls = up ? 'up' : 'down';
-        return `
+      // Render Closed
+      const closedTbody = document.getElementById('closed-holdings-body');
+      if (closed.length === 0) {
+        closedTbody.innerHTML = `
           <tr>
-            <td style="font-family:var(--font-heading);font-weight:700;color:var(--green);">${h.symbol}</td>
-            <td style="color:var(--text-muted);font-size:0.85rem;">${h.company_name}</td>
-            <td class="mono">${h.quantity}</td>
-            <td class="mono">₹${formatNum(h.avg_buy_price)}</td>
-            <td class="mono">₹${formatNum(h.current_price)}</td>
-            <td class="mono">₹${formatNum(h.current_value)}</td>
-            <td class="mono ${cls}" style="text-align:right;font-weight:700;">
-              ${sign}₹${formatNum(Math.abs(h.pnl))} <br>
-              <span style="font-size:0.75rem;font-weight:500;">(${sign}${h.pnl_pct.toFixed(2)}%)</span>
+            <td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">
+              No closed positions yet.
             </td>
-          </tr>
-        `;
-      }).join('');
+          </tr>`;
+      } else {
+        closedTbody.innerHTML = closed.map(h => {
+          const up   = h.realized_pnl >= 0;
+          const sign = up ? '+' : '';
+          const cls  = up ? 'up' : 'down';
+          return `
+            <tr>
+              <td style="font-family:var(--font-heading);font-weight:700;color:var(--text-muted);">${h.symbol}</td>
+              <td style="color:var(--text-muted);font-size:0.85rem;">${h.company_name}</td>
+              <td class="mono">₹${formatNum(h.avg_buy_price)}</td>
+              <td class="mono ${cls}" style="text-align:right;font-weight:700;">
+                ${sign}₹${formatNum(Math.abs(h.realized_pnl))}
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+
+    function renderWatchlist(wl) {
+      const panel = document.getElementById('watchlist-panel');
+      const tbody = document.getElementById('watchlist-body');
+      if (!wl || wl.length === 0) {
+        panel.style.display = 'none';
+        return;
+      }
+      panel.style.display = 'block';
+      tbody.innerHTML = wl.map(s => `
+        <tr>
+          <td style="font-family:var(--font-heading);font-weight:700;color:var(--green);">${s.symbol}</td>
+          <td style="color:var(--text-muted);font-size:0.85rem;">${s.company_name}</td>
+          <td class="mono">₹${formatNum(s.current_price)}</td>
+          <td style="text-align:right;">
+            <a href="/place-trade?stock_id=${s.id}" class="btn-primary" style="padding:4px 10px;font-size:0.75rem;text-decoration:none;display:inline-block;border-radius:4px;">Trade</a>
+          </td>
+        </tr>
+      `).join('');
     }
 
     document.addEventListener('DOMContentLoaded', async () => {
@@ -137,5 +239,4 @@
     });
   </script>
 </body>
-
 </html>

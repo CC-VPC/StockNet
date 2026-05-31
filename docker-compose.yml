@@ -14,18 +14,18 @@ services:
     container_name: stocknet-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: stocknetdb
-      POSTGRES_USER: stocknet
-      POSTGRES_PASSWORD: stocknet123
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       # Persist data across container restarts
       - postgres_data:/var/lib/postgresql/data
       # Auto-run SQL init scripts on first boot (alphabetical order)
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U stocknet -d stocknetdb"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -41,11 +41,11 @@ services:
     container_name: stocknet-backend
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://stocknet:stocknet123@postgres:5432/stocknetdb
-      SECRET_KEY: stocknet-super-secret-key-change-in-production-please
-      ACCESS_TOKEN_EXPIRE_MINUTES: "1440"
+      DATABASE_URL: ${DATABASE_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     volumes:
       # Hot-reload in development: mount source code
       - ./backend:/app
@@ -65,10 +65,10 @@ services:
     environment:
       DB_HOST: postgres
       DB_PORT: "5432"
-      DB_NAME: stocknetdb
-      DB_USER: stocknet
-      DB_PASS: stocknet123
-      UPDATE_INTERVAL_SECONDS: "30"
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASS: ${POSTGRES_PASSWORD}
+      UPDATE_INTERVAL_SECONDS: ${UPDATE_INTERVAL_SECONDS}
     depends_on:
       postgres:
         condition: service_healthy

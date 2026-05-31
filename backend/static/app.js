@@ -70,12 +70,22 @@ async function requireAuth() {
   return user;
 }
 
+// ─── Watchlist Helpers ────────────────────────────────────────────────────────
+async function toggleWatchlist(stockId) {
+  return api('/watchlist', 'POST', { stock_id: stockId });
+}
+
+async function getWatchlist() {
+  return api('/watchlist');
+}
+
 // ─── Page → nav link mapping ──────────────────────────────────────────────────
 const NAV_PAGES = [
   { href: '/dashboard',   label: 'Dashboard'    },
   { href: '/portfolio',   label: 'Portfolio'    },
   { href: '/trades',      label: 'Trade History' },
   { href: '/place-trade', label: 'Place Trade'  },
+  { href: '/profile',     label: 'Profile & Wallet' },
 ];
 
 // ─── Shared Navbar Renderer ───────────────────────────────────────────────────

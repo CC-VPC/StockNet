@@ -7,6 +7,7 @@
 -- Drop tables if they exist (for clean re-init)
 DROP TABLE IF EXISTS risk_logs CASCADE;
 DROP TABLE IF EXISTS transactions CASCADE;
+DROP TABLE IF EXISTS watchlists CASCADE;
 DROP TABLE IF EXISTS holdings CASCADE;
 DROP TABLE IF EXISTS stocks CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
@@ -41,10 +42,22 @@ CREATE TABLE holdings (
     stock_id        INT             NOT NULL REFERENCES stocks(id) ON DELETE CASCADE,
     quantity        INT             NOT NULL DEFAULT 0,
     avg_buy_price   NUMERIC(10,2)   NOT NULL,
+    realized_pnl    NUMERIC(15,2)   NOT NULL DEFAULT 0.00,
     UNIQUE(user_id, stock_id)
 );
 
 CREATE INDEX idx_holdings_user ON holdings(user_id);
+
+-- ─── watchlists ───────────────────────────────────────────────
+CREATE TABLE watchlists (
+    id              SERIAL PRIMARY KEY,
+    user_id         INT             NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    stock_id        INT             NOT NULL REFERENCES stocks(id) ON DELETE CASCADE,
+    created_at      TIMESTAMP       NOT NULL DEFAULT NOW(),
+    UNIQUE(user_id, stock_id)
+);
+
+CREATE INDEX idx_watchlists_user ON watchlists(user_id);
 
 -- ─── transactions ─────────────────────────────────────────────
 CREATE TABLE transactions (

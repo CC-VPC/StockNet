@@ -19,6 +19,7 @@ class User(Base):
 
     holdings = relationship("Holding", back_populates="user")
     transactions = relationship("Transaction", back_populates="user")
+    watchlist_items = relationship("WatchlistItem", back_populates="user", cascade="all, delete-orphan")
 
 
 class Stock(Base):
@@ -42,6 +43,7 @@ class Holding(Base):
     stock_id = Column(Integer, ForeignKey("stocks.id"), nullable=False)
     quantity = Column(Integer, default=0, nullable=False)
     avg_buy_price = Column(Numeric(10, 2), nullable=False)
+    realized_pnl = Column(Numeric(15, 2), default=0.00, nullable=False)
 
     user = relationship("User", back_populates="holdings")
     stock = relationship("Stock", back_populates="holdings")
@@ -77,3 +79,15 @@ class RiskLog(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
 
     transaction = relationship("Transaction", back_populates="risk_log")
+
+
+class WatchlistItem(Base):
+    __tablename__ = "watchlists"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    stock_id = Column(Integer, ForeignKey("stocks.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="watchlist_items")
+    stock = relationship("Stock")

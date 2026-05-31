@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="StockNet Dashboard — live market prices, recent trades, and system status.">
   <title>StockNet — Dashboard</title>
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/app.css?v=2">
 </head>
 <body>
 
@@ -18,7 +18,20 @@
       <p style="color:var(--text-muted);font-size:0.88rem;">
         Real-time market prices · Price simulation updates every <code style="color:var(--green);">30 seconds</code>
       </p>
+      <p style="color:var(--red);font-size:0.82rem;font-weight:600;margin-top:6px;display:flex;align-items:center;gap:6px;">
+        <span style="font-size:1.1rem;line-height:1;">*</span> All the stock prices are simulated and do not represent actual values.
+      </p>
     </header>
+
+    <!-- My Watchlist Section -->
+    <section class="panel" id="watchlist-panel" style="display:none;margin-bottom:24px;">
+      <div class="panel-header">
+        <h3 class="panel-title">My Watchlist</h3>
+      </div>
+      <div class="grid-market" id="watchlist-grid" style="margin-top:14px;border:none;padding:0;">
+        <!-- Watchlisted stock cards go here -->
+      </div>
+    </section>
 
     <!-- Market Overview Cards -->
     <section class="grid-market" id="market-grid">
@@ -135,11 +148,21 @@
   </main>
 
   <div id="toast"></div>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=2"></script>
   <script>
     let allStocks = [];
+    let watchedStockIds = new Set();
 
     async function loadDashboard(user) {
+      // Watchlist
+      try {
+        const wl = await getWatchlist();
+        watchedStockIds = new Set(wl.map(s => s.id));
+        renderWatchlist(wl);
+      } catch (e) {
+        console.error('Failed to load watchlist', e);
+      }
+
       // Stocks
       try {
         allStocks = await api('/stocks');
@@ -158,20 +181,53 @@
       runSoftHealthCheck();
     }
 
+    function createStockCardHTML(s, isWatched) {
+      const starIcon = isWatched ? '★' : '☆';
+      const starColor = isWatched ? '#e9a115' : 'var(--text-muted)';
+      const starClass = isWatched ? 'star-btn watched' : 'star-btn';
+      return `
+        <div class="card stock-card" style="position:relative;">
+          <button class="${starClass}" onclick="handleStarClick(event, ${s.id})" style="position:absolute;top:10px;right:10px;background:none;border:none;color:${starColor};font-size:1.25rem;cursor:pointer;z-index:2;line-height:1;outline:none;padding:2px;">${starIcon}</button>
+          <div onclick="window.location='/place-trade?stock_id=${s.id}'" style="cursor:pointer;">
+            <div class="card-title">${s.symbol}</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:24px;">${s.company_name}</div>
+            <div class="card-value mono">₹${formatNum(s.current_price)}</div>
+            <div class="card-change">
+              <span style="color:var(--green);font-size:0.78rem;font-weight:600;">LIVE</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     function renderStockCards(stocks) {
       const grid = document.getElementById('market-grid');
       if (!stocks.length) { grid.innerHTML = '<div class="card" style="text-align:center;color:var(--text-muted);">No stocks found.</div>'; return; }
 
-      grid.innerHTML = stocks.map(s => `
-        <div class="card stock-card" onclick="window.location='/place-trade'">
-          <div class="card-title">${s.symbol}</div>
-          <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.company_name}</div>
-          <div class="card-value mono">₹${formatNum(s.current_price)}</div>
-          <div class="card-change">
-            <span style="color:var(--text-muted);font-size:0.78rem;">Simulated · Live</span>
-          </div>
-        </div>
-      `).join('');
+      grid.innerHTML = stocks.map(s => createStockCardHTML(s, watchedStockIds.has(s.id))).join('');
+    }
+
+    function renderWatchlist(wl) {
+      const panel = document.getElementById('watchlist-panel');
+      const grid = document.getElementById('watchlist-grid');
+      if (!wl || wl.length === 0) {
+        panel.style.display = 'none';
+        return;
+      }
+      panel.style.display = 'block';
+      grid.innerHTML = wl.map(s => createStockCardHTML(s, true)).join('');
+    }
+
+    async function handleStarClick(e, stockId) {
+      e.stopPropagation();
+      try {
+        const res = await toggleWatchlist(stockId);
+        showToast(res.message, 'success');
+        const user = await getCurrentUser();
+        if (user) await loadDashboard(user);
+      } catch (err) {
+        showToast('Failed to toggle watchlist: ' + err.message, 'error');
+      }
     }
 
     function renderTradesFeed(txns) {

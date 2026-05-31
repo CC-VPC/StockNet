@@ -30,20 +30,27 @@ def get_portfolio(
     holding_list = []
     total_invested = Decimal("0")
     total_current_value = Decimal("0")
+    total_realized_pnl = Decimal("0")
 
     for h in holdings:
         stock: Stock = db.query(Stock).filter(Stock.id == h.stock_id).first()
         avg = Decimal(str(h.avg_buy_price))
         price = Decimal(str(stock.current_price))
         qty = h.quantity
+        realized = Decimal(str(h.realized_pnl))
 
-        invested = avg * qty
+        buy_val = avg * qty
         current_val = price * qty
-        pnl = current_val - invested
-        pnl_pct = (pnl / invested * 100) if invested > 0 else Decimal("0")
+        unrealized = current_val - buy_val
+        unrealized_pct = (unrealized / buy_val * 100) if buy_val > 0 else Decimal("0")
 
-        total_invested += invested
-        total_current_value += current_val
+        if qty > 0:
+            total_invested += buy_val
+            total_current_value += current_val
+        total_realized_pnl += realized
+
+        pnl = unrealized if qty > 0 else realized
+        pnl_pct = unrealized_pct if qty > 0 else Decimal("0")
 
         holding_list.append(
             HoldingOut(
@@ -54,13 +61,18 @@ def get_portfolio(
                 quantity=qty,
                 avg_buy_price=float(avg),
                 current_price=float(price),
+                buy_value=float(buy_val),
                 current_value=float(current_val),
+                unrealized_pnl=float(unrealized),
+                unrealized_pnl_pct=float(unrealized_pct),
+                realized_pnl=float(realized),
                 pnl=float(pnl),
                 pnl_pct=float(pnl_pct),
             )
         )
 
-    total_pnl = total_current_value - total_invested
+    total_unrealized_pnl = total_current_value - total_invested
+    total_pnl = total_unrealized_pnl + total_realized_pnl
 
     return PortfolioOut(
         user_id=current_user.id,
@@ -69,5 +81,7 @@ def get_portfolio(
         holdings=holding_list,
         total_invested=float(total_invested),
         total_current_value=float(total_current_value),
+        total_unrealized_pnl=float(total_unrealized_pnl),
+        total_realized_pnl=float(total_realized_pnl),
         total_pnl=float(total_pnl),
     )

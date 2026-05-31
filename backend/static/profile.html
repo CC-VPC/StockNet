@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="StockNet Profile — manage your account details and deposit/withdraw simulated funds.">
+  <title>StockNet — Profile & Wallet</title>
+  <link rel="stylesheet" href="/static/app.css?v=2">
+</head>
+<body>
+
+  <div id="navbar-placeholder"></div>
+  <div id="ticker-placeholder"></div>
+
+  <main class="container">
+    <header style="margin-bottom:24px;">
+      <h2 style="font-family:var(--font-heading);margin-bottom:4px;">Profile &amp; Wallet</h2>
+      <p style="color:var(--text-muted);font-size:0.88rem;">
+        Manage your user credentials and simulated cash balance
+      </p>
+    </header>
+
+    <div class="grid-dashboard" style="grid-template-columns: 1fr 1fr; gap: 24px;">
+      
+      <!-- Left: Wallet Management (Deposit/Withdrawal) -->
+      <section class="panel" style="padding: 28px;">
+        <div class="panel-header" style="margin-bottom: 20px;">
+          <h3 class="panel-title">Manage Wallet</h3>
+        </div>
+        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 18px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+          <span style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Current Balance</span>
+          <div class="mono" id="wallet-balance-display" style="font-size: 2rem; font-weight: 700; color: var(--green); margin-top: 6px;">₹0.00</div>
+        </div>
+
+        <form id="wallet-form" onsubmit="handleWalletAction(event)">
+          <div class="form-group">
+            <label class="form-label">Transaction Type</label>
+            <div class="segmented-control" style="margin-bottom: 16px;">
+              <button type="button" class="segment-btn active buy" id="btn-mode-deposit">DEPOSIT</button>
+              <button type="button" class="segment-btn" id="btn-mode-withdraw">WITHDRAW</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="wallet-amount">Amount (₹)</label>
+            <input type="number" id="wallet-amount" class="form-control mono" placeholder="10000" min="0.01" step="0.01" required>
+          </div>
+
+          <button type="submit" id="btn-wallet-submit" class="btn-primary" style="margin-top: 10px;">Deposit Funds</button>
+        </form>
+      </section>
+
+      <!-- Right: User Details & Credentials Update -->
+      <section class="panel" style="padding: 28px;">
+        <div class="panel-header" style="margin-bottom: 20px;">
+          <h3 class="panel-title">Account Settings</h3>
+        </div>
+
+        <form id="profile-form" onsubmit="handleProfileUpdate(event)">
+          <div class="form-group">
+            <label class="form-label" for="profile-name">Full Name</label>
+            <input type="text" id="profile-name" class="form-control" placeholder="Your name" required autocomplete="name">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="profile-email">Email Address</label>
+            <input type="email" id="profile-email" class="form-control" placeholder="Email" required autocomplete="email">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="profile-password">New Password (leave blank to keep current)</label>
+            <input type="password" id="profile-password" class="form-control" placeholder="••••••••" autocomplete="new-password">
+          </div>
+
+          <button type="submit" id="btn-profile-submit" class="btn-secondary" style="margin-top: 10px; width: 100%;">Update Profile</button>
+        </form>
+      </section>
+
+    </div>
+  </main>
+
+  <div id="toast"></div>
+
+  <script src="/static/app.js?v=2"></script>
+  <script>
+    let walletMode = 'DEPOSIT';
+
+    // Toggle wallet modes
+    document.getElementById('btn-mode-deposit').addEventListener('click', () => {
+      walletMode = 'DEPOSIT';
+      document.getElementById('btn-mode-deposit').className = 'segment-btn active buy';
+      document.getElementById('btn-mode-withdraw').className = 'segment-btn';
+      const btn = document.getElementById('btn-wallet-submit');
+      btn.className = 'btn-primary';
+      btn.textContent = 'Deposit Funds';
+    });
+
+    document.getElementById('btn-mode-withdraw').addEventListener('click', () => {
+      walletMode = 'WITHDRAW';
+      document.getElementById('btn-mode-withdraw').className = 'segment-btn active sell';
+      document.getElementById('btn-mode-deposit').className = 'segment-btn';
+      const btn = document.getElementById('btn-wallet-submit');
+      btn.className = 'btn-danger';
+      btn.textContent = 'Withdraw Funds';
+    });
+
+    async function loadUserProfile() {
+      const user = await getCurrentUser();
+      if (!user) return;
+
+      document.getElementById('wallet-balance-display').textContent = '₹' + formatNum(user.wallet_balance);
+      document.getElementById('profile-name').value = user.name;
+      document.getElementById('profile-email').value = user.email;
+    }
+
+    async function handleWalletAction(e) {
+      e.preventDefault();
+      const amountInput = document.getElementById('wallet-amount');
+      const amount = parseFloat(amountInput.value);
+      if (!amount || amount <= 0) return;
+
+      const btn = document.getElementById('btn-wallet-submit');
+      btn.disabled = true;
+      btn.textContent = 'Processing…';
+
+      try {
+        const endpoint = walletMode === 'DEPOSIT' ? '/auth/deposit' : '/auth/withdraw';
+        const res = await api(endpoint, 'POST', { amount });
+        showToast(res.message, 'success');
+        
+        // Refresh values
+        document.getElementById('wallet-balance-display').textContent = '₹' + formatNum(res.wallet_balance);
+        amountInput.value = '';
+        
+        // Update nav bar info
+        await renderNavbar('profile.html');
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = walletMode === 'DEPOSIT' ? 'Deposit Funds' : 'Withdraw Funds';
+      }
+    }
+
+    async function handleProfileUpdate(e) {
+      e.preventDefault();
+      const name = document.getElementById('profile-name').value.trim();
+      const email = document.getElementById('profile-email').value.trim();
+      const password = document.getElementById('profile-password').value;
+
+      const payload = { name, email };
+      if (password) payload.password = password;
+
+      const btn = document.getElementById('btn-profile-submit');
+      btn.disabled = true;
+      btn.textContent = 'Saving changes…';
+
+      try {
+        const res = await api('/auth/profile', 'PUT', payload);
+        showToast(res.message, 'success');
+        document.getElementById('profile-password').value = '';
+        await loadUserProfile();
+        await renderNavbar('profile.html');
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Update Profile';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await initPage('profile.html');
+      if (user) {
+        await loadUserProfile();
+      }
+    });
+  </script>
+</body>
+</html>

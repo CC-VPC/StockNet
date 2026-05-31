@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="StockNet — Place a buy or sell order with live price preview.">
   <title>StockNet — Place Trade</title>
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/app.css?v=2">
 </head>
 <body>
 
@@ -87,7 +87,7 @@
   </main>
 
   <div id="toast"></div>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=2"></script>
   <script>
     let side = 'BUY';
     let stocks = [];
@@ -220,7 +220,16 @@
 
     document.addEventListener('DOMContentLoaded', async () => {
       const user = await initPage('place-trade.html');
-      if (user) await loadContext();
+      if (user) {
+        await loadContext();
+        const urlParams = new URLSearchParams(window.location.search);
+        const stockId = urlParams.get('stock_id');
+        if (stockId) {
+          const sel = document.getElementById('select-stock');
+          sel.value = stockId;
+          syncPrice();
+        }
+      }
     });
   </script>
 </body>

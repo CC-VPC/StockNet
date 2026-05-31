@@ -84,7 +84,11 @@ class HoldingOut(BaseModel):
     quantity: int
     avg_buy_price: float
     current_price: float
+    buy_value: float
     current_value: float
+    unrealized_pnl: float
+    unrealized_pnl_pct: float
+    realized_pnl: float
     pnl: float
     pnl_pct: float
 
@@ -98,6 +102,8 @@ class PortfolioOut(BaseModel):
     holdings: List[HoldingOut]
     total_invested: float
     total_current_value: float
+    total_unrealized_pnl: float
+    total_realized_pnl: float
     total_pnl: float
 
 
@@ -128,3 +134,26 @@ class RiskLogOut(BaseModel):
     timestamp: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ─── New Profile / Wallet & Watchlist Schemas ─────────────────────────────────
+
+class ProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
+
+
+class WalletTransaction(BaseModel):
+    amount: float
+
+    @field_validator("amount")
+    @classmethod
+    def amount_must_be_positive(cls, v):
+        if v < 0.01:
+            raise ValueError("Amount must be at least ₹0.01")
+        return v
+
+
+class WatchlistToggle(BaseModel):
+    stock_id: int

@@ -131,12 +131,13 @@ def sell_stock(db: Session, user: User, stock_id: int, quantity: int) -> dict:
     user.wallet_balance += total_proceeds
     db.add(user)
 
-    # 4. Update holding
+    # 4. Update holding & realized P&L
+    sell_price = Decimal(str(stock.current_price))
+    avg_buy = Decimal(str(holding.avg_buy_price))
+    sale_pnl = (sell_price - avg_buy) * quantity
+    holding.realized_pnl = Decimal(str(holding.realized_pnl)) + sale_pnl
     holding.quantity -= quantity
-    if holding.quantity == 0:
-        db.delete(holding)
-    else:
-        db.add(holding)
+    db.add(holding)
 
     # 5. Record transaction
     txn = Transaction(

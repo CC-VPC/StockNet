@@ -15,7 +15,7 @@ from sqlalchemy.exc import OperationalError
 
 from database import engine, SessionLocal
 from models import Base, Stock
-from routes import auth, stocks, trades, portfolio, transactions
+from routes import auth, stocks, trades, portfolio, transactions, watchlist
 
 # ─── Logging ─────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -130,6 +130,7 @@ app.include_router(stocks.router,       prefix="/api")
 app.include_router(trades.router,       prefix="/api")
 app.include_router(portfolio.router,    prefix="/api")
 app.include_router(transactions.router, prefix="/api")
+app.include_router(watchlist.router,    prefix="/api")
 
 
 # ─── Health Check ─────────────────────────────────────────────────────────────
@@ -170,3 +171,6 @@ def page_trades():       return _page("trades.html")
 
 @app.get("/place-trade", response_class=HTMLResponse, include_in_schema=False)
 def page_place_trade():  return _page("place-trade.html")
+
+@app.get("/profile",     response_class=HTMLResponse, include_in_schema=False)
+def page_profile():      return _page("profile.html")
